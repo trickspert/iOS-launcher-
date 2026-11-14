@@ -5,13 +5,11 @@ set -u
 PKG=dev.liquidglass.launcher
 mkdir -p shots
 
+N=0
 shot() {
-  adb exec-out screencap -p > "shots/$1.png"
-  convert "shots/$1.png" -resize 300x -quality 62 "shots/$1.jpg" 2>/dev/null || return 0
-  echo "SHOT_BEGIN $1"
-  base64 -w 0 "shots/$1.jpg"
-  echo
-  echo "SHOT_END $1"
+  N=$((N+1))
+  adb exec-out screencap -p > "shots/$(printf %02d $N)-$1.png"
+  echo "screenshot $N: $1"
 }
 
 alive() { adb shell pidof $PKG >/dev/null 2>&1; }
@@ -82,6 +80,9 @@ if ! alive; then
   grep -E "AndroidRuntime|$PKG" shots/logcat.txt | tail -60
   status=1
 fi
+echo "===== launcher warnings ====="
+PID_LINES=$(grep -E " (W|E) " shots/logcat.txt | grep -iE "liquidglass|AndroidRuntime|Choreographer|RuntimeShader" | tail -40)
+echo "$PID_LINES"
 echo "===== glass log ====="
 grep -iE "RuntimeShader|AGSL|SkSL|glass" shots/logcat.txt | tail -20 || true
 exit $status

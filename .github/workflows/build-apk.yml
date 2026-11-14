@@ -45,6 +45,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [30, 34]
     steps:
       - uses: actions/checkout@v4
 
@@ -62,7 +66,7 @@ jobs:
       - name: Run launcher on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          api-level: ${{ matrix.api }}
           arch: x86_64
           target: google_apis
           profile: pixel_6
@@ -70,11 +74,17 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
           script: bash .github/smoke-test.sh
 
-      - uses: actions/upload-artifact@v4
+      - name: Attach screenshots to a test release
         if: always()
-        with:
-          name: smoke-test-screens
-          path: shots/
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          (cd shots && zip -q -r ../smoke-api${{ matrix.api }}.zip .) || exit 0
+          TAG="smoke-${GITHUB_REF_NAME//\//-}"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --prerelease \
+            --title "Emulator test screenshots – ${GITHUB_REF_NAME}" --notes "Automated screenshots and logs from the emulator smoke test." || true
+          gh release upload "$TAG" smoke-api${{ matrix.api }}.zip --clobber
 
   publish:
     needs: [build, smoke-test]
