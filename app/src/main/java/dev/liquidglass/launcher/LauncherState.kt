@@ -120,6 +120,7 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
     private var wallKey = ""
     private var sharpCache: Pair<String, Bitmap>? = null
 
+    var crashReport by mutableStateOf<String?>(runCatching { app.crashFile().takeIf { it.exists() }?.readText() }.getOrNull())
     var isDefaultHome by mutableStateOf(true)
     var badgesEnabled by mutableStateOf(false)
     var calendarGranted by mutableStateOf(false)
@@ -274,8 +275,9 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
             if (key != wallKey) return@launch
             val cached = sharpCache?.takeIf { it.first == sharpKey }?.second
             val (sharp, soft) = withContext(Dispatchers.Default) {
-                val s = cached ?: Wallpapers.load(app, id, w, h)
-                s to Wallpapers.blur(s, frost, w)
+                val s = cached ?: runCatching { Wallpapers.load(app, id, w, h) }
+                    .getOrElse { Wallpapers.generate("aurora", maxOf(1, w / 2), maxOf(1, h / 2)) }
+                s to runCatching { Wallpapers.blur(s, frost, w) }.getOrElse { Wallpapers.blur(s, 0.4f, w) }
             }
             sharpCache = sharpKey to sharp
             if (key != wallKey) return@launch
@@ -384,6 +386,20 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
 
     fun openPackageIntent(intent: Intent) {
         runCatching { app.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); launchedSomething = true }
+    }
+
+    fun shareCrashReport() {
+        val report = crashReport ?: return
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_SUBJECT, "Glass Launcher crash report")
+            .putExtra(Intent.EXTRA_TEXT, report)
+        runCatching { app.startActivity(Intent.createChooser(send, "Share crash report").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        dismissCrashReport()
+    }
+
+    fun dismissCrashReport() {
+        crashReport = null
+        runCatching { app.crashFile().delete() }
     }
 
     fun haptic(kind: Int = HapticFeedbackConstants.LONG_PRESS) {
@@ -666,7 +682,7 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
                 }
             })
             haptic()
-        } else if (src is Source.Page && item is AppItem && dockBounds.contains(pos) && l.dock.size < dockCapacity) {
+        } else if (src is Source.Page && item is AppItem && dockBounds.contains(pos) && l.dock.size < dockCapacity && item.appKey !in l.dock) {
             val n = l.dock.size + 1
             val slot = dockBounds.width / n
             val idx = ((pos.x - dockBounds.left) / slot).toInt().coerceIn(0, l.dock.size)
@@ -747,8 +763,14 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
         if (launchedSomething) {
             launchedSomething = false
             scope.launch {
-                enter.snapTo(0f)
-                enter.animateTo(1f, spring(dampingRatio = 0.82f, stiffness = 260f))
+                try {
+                    enter.snapTo(0f)
+                    enter.animateTo(1f, spring(dampingRatio = 0.82f, stiffness = 260f))
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    enter.snapTo(1f)
+                }
             }
         }
     }
@@ -761,8 +783,14 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
 
     fun playEnter() {
         scope.launch {
-            enter.snapTo(0f)
-            enter.animateTo(1f, tween(520))
+            try {
+                enter.snapTo(0f)
+                enter.animateTo(1f, tween(520))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                enter.snapTo(1f)
+            }
         }
     }
 

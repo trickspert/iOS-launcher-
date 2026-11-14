@@ -14,10 +14,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import dev.liquidglass.launcher.glass.LightSensor
 import dev.liquidglass.launcher.ui.LauncherRoot
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -47,7 +49,8 @@ class MainActivity : ComponentActivity() {
         }
 
         val app = application as LauncherApplication
-        state = LauncherState(app, lifecycleScope)
+        // Animations (enter zoom, page flips) need Compose's frame clock, which plain lifecycleScope lacks.
+        state = LauncherState(app, CoroutineScope(lifecycleScope.coroutineContext + AndroidUiDispatcher.Main))
         state.hostView = window.decorView
         state.requestDefaultHome = ::requestDefaultHome
         state.pickWallpaper = {

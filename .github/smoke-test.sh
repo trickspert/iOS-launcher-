@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Installs the APK on an emulator, uses it as the home screen and fails on any crash.
+# Small screenshots are printed base64-encoded so they can be read straight from the job log.
+set -u
+PKG=dev.liquidglass.launcher
+mkdir -p shots
+
+shot() {
+  adb exec-out screencap -p > "shots/$1.png"
+  convert "shots/$1.png" -resize 300x -quality 62 "shots/$1.jpg" 2>/dev/null || return 0
+  echo "SHOT_BEGIN $1"
+  base64 -w 0 "shots/$1.jpg"
+  echo
+  echo "SHOT_END $1"
+}
+
+alive() { adb shell pidof $PKG >/dev/null 2>&1; }
+
+adb install -r GlassLauncher.apk
+adb logcat -c
+adb shell am start -W -n $PKG/.MainActivity
+sleep 20
+shot start
+
+adb shell cmd package set-home-activity $PKG/.MainActivity || true
+adb shell input keyevent KEYCODE_HOME
+sleep 5
+shot home
+
+# Pull down for search, then dismiss.
+adb shell input swipe 540 900 540 1600 350
+sleep 3
+shot search
+adb shell input keyevent KEYCODE_BACK
+sleep 1
+adb shell input keyevent KEYCODE_BACK
+sleep 2
+
+# Next page, then the App Library.
+adb shell input swipe 950 1300 120 1300 260
+sleep 3
+shot page2
+adb shell input swipe 950 1300 120 1300 260
+sleep 3
+shot library
+
+adb shell input keyevent KEYCODE_HOME
+sleep 3
+# Long-press an icon (menu) then release.
+adb shell input swipe 400 1150 400 1150 1200
+sleep 2
+shot longpress
+adb shell input keyevent KEYCODE_BACK
+sleep 1
+
+# Long-press empty space → edit mode, open Customize sheet.
+adb shell input swipe 540 1900 540 1900 1200
+sleep 2
+shot edit
+adb shell input keyevent KEYCODE_HOME
+sleep 2
+
+# Launch another app and come back (exercises the return animation).
+adb shell am start -a android.settings.SETTINGS
+sleep 3
+adb shell input keyevent KEYCODE_HOME
+sleep 4
+shot returned
+
+adb logcat -d > shots/logcat.txt
+echo "===== frame stats ====="
+adb shell dumpsys gfxinfo $PKG | grep -E "Total frames|Janky frames|percentile" || true
+
+status=0
+if grep -q "FATAL EXCEPTION" shots/logcat.txt; then
+  echo "===== CRASH ====="
+  grep -A 40 "FATAL EXCEPTION" shots/logcat.txt | head -120
+  status=1
+fi
+if ! alive; then
+  echo "===== launcher process is not running ====="
+  grep -E "AndroidRuntime|$PKG" shots/logcat.txt | tail -60
+  status=1
+fi
+echo "===== glass log ====="
+grep -iE "RuntimeShader|AGSL|SkSL|glass" shots/logcat.txt | tail -20 || true
+exit $status

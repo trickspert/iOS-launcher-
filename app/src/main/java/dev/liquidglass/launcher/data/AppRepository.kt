@@ -96,7 +96,11 @@ class AppRepository(private val context: Context) {
         refreshJob?.cancel()
         refreshJob = scope.launch {
             if (delayMs > 0) delay(delayMs)
-            val list = withContext(Dispatchers.IO) { load() }
+            val list = withContext(Dispatchers.IO) { runCatching { load() }.getOrNull() }
+            if (list == null) {
+                loaded = true
+                return@launch
+            }
             apps = list
             byKey = list.associateBy { it.key }
             loaded = true

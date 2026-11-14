@@ -240,7 +240,8 @@ fun HomeScreen(state: LauncherState, modifier: Modifier = Modifier) {
         Box(Modifier.fillMaxWidth().height(46.dp), contentAlignment = Alignment.Center) {
             SearchOrDots(state, pager, homeCount)
         }
-        if (!state.isDefaultHome && !s.bannerDismissed) DefaultBanner(state)
+        if (state.crashReport != null) CrashBanner(state)
+        else if (!state.isDefaultHome && !s.bannerDismissed) DefaultBanner(state)
         Dock(
             state,
             iconSize = if (s.columns == 4) 62.dp else 56.dp,
@@ -537,6 +538,30 @@ private fun DefaultBanner(state: LauncherState) {
         }
         Spacer(Modifier.width(6.dp))
         GlassButton(onClick = { state.settings.bannerDismissed = true }, modifier = Modifier.size(32.dp)) {
+            Symbol(Sym.CLOSE, 12.dp, Color.White)
+        }
+    }
+}
+
+@Composable
+private fun CrashBanner(state: LauncherState) {
+    Row(
+        Modifier
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .fillMaxWidth()
+            .liquidGlass(22.dp, tint = dev.liquidglass.launcher.glass.darkGlassTint(state.settings))
+            .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            BasicText("Glass closed unexpectedly", style = TextStyle(color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+            BasicText("Share the report so it can be fixed.", style = TextStyle(color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp))
+        }
+        GlassButton(onClick = { state.shareCrashReport() }, modifier = Modifier.height(32.dp), tint = Color(0xFF0A84FF).copy(alpha = 0.6f)) {
+            BasicText("Share", style = TextStyle(color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(horizontal = 14.dp))
+        }
+        Spacer(Modifier.width(6.dp))
+        GlassButton(onClick = { state.dismissCrashReport() }, modifier = Modifier.size(32.dp)) {
             Symbol(Sym.CLOSE, 12.dp, Color.White)
         }
     }

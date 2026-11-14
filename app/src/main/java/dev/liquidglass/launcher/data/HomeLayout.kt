@@ -83,7 +83,27 @@ fun newId(prefix: String) = prefix + ":" + UUID.randomUUID().toString().take(8)
 fun normalize(layout: HomeLayout, cols: Int, rows: Int): HomeLayout {
     val result = ArrayList<List<HomeItem>>()
     var carry: List<HomeItem> = emptyList()
-    val src = layout.pages.toMutableList()
+    // Every id (and app) may appear only once: duplicates would crash keyed Compose lists.
+    val dock = layout.dock.distinct()
+    val seenIds = HashSet<String>()
+    val seenApps = HashSet<String>(dock)
+    val src = layout.pages.map { page ->
+        page.mapNotNull { item ->
+            if (!seenIds.add(item.id)) return@mapNotNull null
+            when (item) {
+                is AppItem -> if (seenApps.add(item.appKey)) item else null
+                is FolderItem -> {
+                    val apps = item.apps.filter { seenApps.add(it) }
+                    when (apps.size) {
+                        0 -> null
+                        1 -> AppItem(apps[0]).takeIf { seenIds.add(it.id) }
+                        else -> item.copy(apps = apps)
+                    }
+                }
+                is WidgetItem -> item
+            }
+        }
+    }.toMutableList()
     var i = 0
     while (i < src.size || carry.isNotEmpty()) {
         val items = carry + (src.getOrNull(i) ?: emptyList())
@@ -94,7 +114,7 @@ fun normalize(layout: HomeLayout, cols: Int, rows: Int): HomeLayout {
         if (i > 64) break
     }
     val pages = result.filter { it.isNotEmpty() }.ifEmpty { listOf(emptyList()) }
-    return layout.copy(pages = pages)
+    return layout.copy(pages = pages, dock = dock)
 }
 
 class LayoutStore(context: Context) {

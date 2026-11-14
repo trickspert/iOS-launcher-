@@ -211,7 +211,7 @@ fun Modifier.liquidGlass(
     val env = LocalGlass.current ?: return@composed this
     val pos = remember { mutableStateOf(Offset.Zero) }
     val tracked = this.onGloballyPositioned { pos.value = it.positionInWindow() }
-    if (Build.VERSION.SDK_INT >= 33) {
+    if (Build.VERSION.SDK_INT >= 33 && GlassSupport.shaderOk) {
         val painter = remember(env) { ShaderGlass(env) }
         tracked.drawBehind {
             val s = env.settings
@@ -221,8 +221,13 @@ fun Modifier.liquidGlass(
             val tp = touch?.point?.takeIf { it.isSpecified } ?: Offset(size.width / 2f, size.height / 2f)
             val refr = (3.dp.toPx() + 15.dp.toPx() * s.refraction) * refraction
             val l = if (s.motionLight) env.light.dir else Offset(-0.55f, -0.83f)
-            painter.update(size, pos.value, r, l, press, tp, refr, t, 0.4f + s.frost * 0.8f, rim)
-            drawIntoCanvas { it.nativeCanvas.drawRect(0f, 0f, size.width, size.height, painter.paint) }
+            try {
+                painter.update(size, pos.value, r, l, press, tp, refr, t, 0.4f + s.frost * 0.8f, rim)
+                drawIntoCanvas { it.nativeCanvas.drawRect(0f, 0f, size.width, size.height, painter.paint) }
+            } catch (e: Exception) {
+                GlassSupport.shaderOk = false
+                drawRoundRect(Color.White.copy(alpha = 0.25f), cornerRadius = CornerRadius(r, r))
+            }
         }
     } else {
         val fb = remember(env) { FallbackGlass(env) }
@@ -255,6 +260,15 @@ fun Modifier.liquidGlass(
             )
         }
     }
+}
+
+/** Checks once that this device's GPU driver accepts the glass shader. */
+object GlassSupport {
+    @Volatile
+    var shaderOk: Boolean = Build.VERSION.SDK_INT >= 33 && compiles()
+
+    private fun compiles(): Boolean =
+        if (Build.VERSION.SDK_INT >= 33) runCatching { RuntimeShader(GLASS_AGSL); true }.getOrDefault(false) else false
 }
 
 fun defaultTint(s: LauncherSettings): Color = Color.White.copy(alpha = 0.04f + 0.22f * s.glassTint)
