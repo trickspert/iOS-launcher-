@@ -52,7 +52,7 @@ adb shell input keyevent KEYCODE_BACK
 sleep 1
 
 # Long-press empty space → edit mode, open Customize sheet.
-adb shell input swipe 540 1900 540 1900 1200
+adb shell input swipe 760 1680 760 1680 1200
 sleep 2
 shot edit
 adb shell input keyevent KEYCODE_HOME

@@ -107,7 +107,7 @@ fun Overlays(state: LauncherState) {
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.22f * scrim))
+                .background(Color.Black.copy(alpha = (if (android.os.Build.VERSION.SDK_INT >= 31) 0.22f else 0.5f) * scrim))
                 .then(if (ov != null) Modifier.plainClick { state.overlay = null } else Modifier),
         )
     }

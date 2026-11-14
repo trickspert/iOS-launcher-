@@ -193,7 +193,8 @@ fun HomeScreen(state: LauncherState, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(state.repo.apps, state.repo.loaded) { state.syncLayout() }
 
-    Column(modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize()) {
         Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val cols = s.columns
@@ -233,7 +234,6 @@ fun HomeScreen(state: LauncherState, modifier: Modifier = Modifier) {
                 ) { page ->
                     if (page < homeCount) HomePage(state, page, metrics) else AppLibrary(state)
                 }
-                EditBar(state, Modifier.align(Alignment.TopCenter))
             }
         }
         val libraryProgress = ((pager.currentPage + pager.currentPageOffsetFraction) - (homeCount - 1)).coerceIn(0f, 1f)
@@ -252,6 +252,8 @@ fun HomeScreen(state: LauncherState, modifier: Modifier = Modifier) {
         )
         Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
         Spacer(Modifier.height(10.dp))
+    }
+    EditBar(state, Modifier.align(Alignment.TopCenter))
     }
 }
 
@@ -501,18 +503,18 @@ private fun EditBar(state: LauncherState, modifier: Modifier) {
         exit = fadeOut() + slideOutVertically { -it },
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+            Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            GlassButton(onClick = { state.overlay = Overlay.AddWidget }, modifier = Modifier.size(38.dp)) {
+            GlassButton(onClick = { state.overlay = Overlay.AddWidget }, modifier = Modifier.size(34.dp)) {
                 Symbol(Sym.PLUS, 16.dp, Color.White)
             }
             Spacer(Modifier.width(8.dp))
-            GlassButton(onClick = { state.overlay = Overlay.Settings }, modifier = Modifier.height(38.dp)) {
+            GlassButton(onClick = { state.overlay = Overlay.Settings }, modifier = Modifier.height(34.dp)) {
                 BasicText("Customize", style = TextStyle(color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(horizontal = 16.dp))
             }
             Spacer(Modifier.weight(1f))
-            GlassButton(onClick = { state.exitEdit() }, modifier = Modifier.height(38.dp), tint = Color(0xFF0A84FF).copy(alpha = 0.55f)) {
+            GlassButton(onClick = { state.exitEdit() }, modifier = Modifier.height(34.dp), tint = Color(0xFF0A84FF).copy(alpha = 0.55f)) {
                 BasicText("Done", style = TextStyle(color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(horizontal = 18.dp))
             }
         }

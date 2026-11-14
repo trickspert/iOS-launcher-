@@ -114,7 +114,7 @@ private fun BatteryWidget() {
                 charging = st == BatteryManager.BATTERY_STATUS_CHARGING || st == BatteryManager.BATTERY_STATUS_FULL
             }
         }
-        val sticky = ContextCompat.registerReceiver(ctx, r, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED)
+        val sticky = ContextCompat.registerReceiver(ctx, r, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_EXPORTED) // protected system broadcast
         sticky?.let { r.onReceive(ctx, it) }
         onDispose { runCatching { ctx.unregisterReceiver(r) } }
     }
