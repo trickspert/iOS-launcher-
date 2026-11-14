@@ -118,6 +118,7 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
     var blurred by mutableStateOf<Bitmap?>(null)
         private set
     private var wallKey = ""
+    private var sharpCache: Pair<String, Bitmap>? = null
 
     var isDefaultHome by mutableStateOf(true)
     var badgesEnabled by mutableStateOf(false)
@@ -267,11 +268,16 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
         wallKey = key
         val id = settings.wallpaper
         val frost = settings.frost
+        val sharpKey = "$id|$w|$h|${settings.wallpaperVersion}"
         scope.launch {
+            if (wallpaper != null) delay(60) // coalesce rapid slider changes
+            if (key != wallKey) return@launch
+            val cached = sharpCache?.takeIf { it.first == sharpKey }?.second
             val (sharp, soft) = withContext(Dispatchers.Default) {
-                val s = Wallpapers.load(app, id, w, h)
+                val s = cached ?: Wallpapers.load(app, id, w, h)
                 s to Wallpapers.blur(s, frost, w)
             }
+            sharpCache = sharpKey to sharp
             if (key != wallKey) return@launch
             sharp.prepareToDraw()
             wallpaper = sharp.asImageBitmap()
