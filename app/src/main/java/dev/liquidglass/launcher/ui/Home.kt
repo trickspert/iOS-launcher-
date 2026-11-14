@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -183,6 +185,7 @@ fun LauncherRoot(state: LauncherState) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(state: LauncherState, modifier: Modifier = Modifier) {
     val s = state.settings
@@ -195,7 +198,8 @@ fun HomeScreen(state: LauncherState, modifier: Modifier = Modifier) {
 
     Box(modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
-        Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+        // Ignore visibility so the grid doesn't jump when edit mode hides the status bar.
+        Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBarsIgnoringVisibility))
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val cols = s.columns
             val hPad = if (cols == 4) 22.dp else 12.dp

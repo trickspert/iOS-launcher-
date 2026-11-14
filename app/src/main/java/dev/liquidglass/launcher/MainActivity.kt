@@ -15,6 +15,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.AndroidUiDispatcher
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import dev.liquidglass.launcher.glass.LightSensor
@@ -65,6 +68,15 @@ class MainActivity : ComponentActivity() {
             snapshotFlow { state.settings.motionLight }.collect { on ->
                 if (on && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) sensor.start()
                 if (!on) { sensor.stop(); sensor.reset() }
+            }
+        }
+
+        // Like iOS, hide the status bar while editing so the Customize / Done buttons own the top strip.
+        lifecycleScope.launch {
+            snapshotFlow { state.editMode }.collect { editing ->
+                val c = WindowCompat.getInsetsController(window, window.decorView)
+                c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                if (editing) c.hide(WindowInsetsCompat.Type.statusBars()) else c.show(WindowInsetsCompat.Type.statusBars())
             }
         }
 
