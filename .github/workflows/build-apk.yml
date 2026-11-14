@@ -1,0 +1,53 @@
+name: Build APK
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Collect APK
+        run: cp app/build/outputs/apk/release/app-release.apk GlassLauncher.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GlassLauncher-apk
+          path: GlassLauncher.apk
+
+      - name: Publish downloadable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="apk-${GITHUB_REF_NAME//\//-}"
+          gh release delete "$TAG" --yes --cleanup-tag || true
+          gh release create "$TAG" GlassLauncher.apk \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Glass Launcher – ${GITHUB_REF_NAME} (build ${GITHUB_RUN_NUMBER})" \
+            --notes "Download **GlassLauncher.apk** below and open it on your Android phone (Android 8.0+). Liquid glass refraction needs Android 13+; older versions get a frosted fallback."
