@@ -65,9 +65,13 @@ shot edit
 adb shell input tap 290 60
 sleep 3
 shot settings
-adb shell input swipe 540 1500 540 700 300
+# Scroll the sheet: first from a plain area, then starting on a control.
+adb shell input swipe 1045 1500 1045 900 600
 sleep 2
-shot settings2
+shot settings-scrolled
+adb shell input swipe 540 1700 540 700 500
+sleep 2
+shot settings-bottom
 adb shell input keyevent KEYCODE_BACK
 sleep 1
 adb shell input keyevent KEYCODE_HOME
@@ -88,7 +92,8 @@ shot returned
 
 adb logcat -d > shots/logcat.txt
 echo "===== frame stats ====="
-adb shell dumpsys gfxinfo $PKG | grep -E "Total frames|Janky frames|percentile" || true
+adb shell dumpsys gfxinfo $PKG > shots/gfxinfo.txt || true
+grep -E "Total frames|Janky frames|percentile" shots/gfxinfo.txt || true
 
 status=0
 if grep -q "FATAL EXCEPTION" shots/logcat.txt; then

@@ -265,7 +265,7 @@ private fun MenuPanel(state: LauncherState, actions: List<MenuAction>) {
     Column(
         Modifier
             .width(254.dp)
-            .liquidGlass(24.dp, tint = darkGlassTint(state.settings), refraction = 1.3f)
+            .liquidGlass(24.dp, tint = darkGlassTint(state.settings), refraction = 1.3f, frosted = true)
             .plainClick { }
             .padding(vertical = 6.dp),
     ) {
@@ -327,7 +327,7 @@ private fun FolderOverlay(state: LauncherState, ov: Overlay.Folder) {
             BoxWithConstraints(
                 Modifier
                     .fillMaxWidth()
-                    .liquidGlass(40.dp, refraction = 1.5f)
+                    .liquidGlass(40.dp, refraction = 1.5f, frosted = true)
                     .plainClick { }
                     .padding(vertical = 22.dp, horizontal = 10.dp),
             ) {
@@ -363,7 +363,7 @@ private fun FolderOverlay(state: LauncherState, ov: Overlay.Folder) {
 private fun SearchFieldPreview() {
     Box(Modifier.fillMaxWidth().statusBarsPadding().padding(16.dp)) {
         Row(
-            Modifier.fillMaxWidth().height(48.dp).liquidGlass(24.dp, tint = darkGlassTint(LocalLauncher.current.settings)).padding(horizontal = 16.dp),
+            Modifier.fillMaxWidth().height(48.dp).liquidGlass(24.dp, tint = darkGlassTint(LocalLauncher.current.settings), frosted = true).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Symbol(Sym.SEARCH, 17.dp, Color.White.copy(alpha = 0.8f))
@@ -419,7 +419,7 @@ private fun Spotlight(state: LauncherState, library: Boolean) {
                 Modifier
                     .weight(1f)
                     .height(48.dp)
-                    .liquidGlass(24.dp, tint = darkGlassTint(state.settings))
+                    .liquidGlass(24.dp, tint = darkGlassTint(state.settings), frosted = true)
                     .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -477,7 +477,7 @@ private fun Spotlight(state: LauncherState, library: Boolean) {
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .liquidGlass(22.dp, tint = darkGlassTint(state.settings))
+                            .liquidGlass(22.dp, tint = darkGlassTint(state.settings), frosted = true)
                             .plainClick { state.overlay = null; state.webSearch(query) }
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -503,7 +503,7 @@ private fun IconGridPanel(state: LauncherState, apps: List<AppEntry>) {
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
-            .liquidGlass(28.dp, tint = darkGlassTint(state.settings).copy(alpha = 0.25f))
+            .liquidGlass(28.dp, tint = darkGlassTint(state.settings).copy(alpha = 0.25f), frosted = true)
             .padding(vertical = 16.dp, horizontal = 6.dp),
     ) {
         val cell = maxWidth / 4
@@ -527,7 +527,7 @@ private fun AppListPanel(state: LauncherState, apps: List<AppEntry>) {
     Column(
         Modifier
             .fillMaxWidth()
-            .liquidGlass(24.dp, tint = darkGlassTint(state.settings))
+            .liquidGlass(24.dp, tint = darkGlassTint(state.settings), frosted = true)
             .padding(vertical = 6.dp),
     ) {
         InGlass {
@@ -570,7 +570,7 @@ private fun AddWidgetSheet(state: LauncherState) {
                 .fillMaxWidth()
                 .padding(10.dp)
                 .navigationBarsPadding()
-                .liquidGlass(38.dp, tint = darkGlassTint(state.settings), refraction = 1.4f)
+                .liquidGlass(38.dp, tint = darkGlassTint(state.settings), refraction = 1.4f, frosted = true)
                 .plainClick { }
                 .padding(20.dp),
         ) { InGlass {

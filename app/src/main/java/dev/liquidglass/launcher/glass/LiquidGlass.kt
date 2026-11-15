@@ -298,6 +298,7 @@ class GlassTouch {
  * @param tint colour mixed into the glass (alpha = amount).
  * @param refraction multiplier on the global refraction setting.
  * @param shadow strength of the contact shadow (0 = none).
+ * @param frosted true for panels that carry text: what is behind them is blurred heavily so it stays readable.
  */
 fun Modifier.liquidGlass(
     cornerRadius: Dp,
@@ -306,6 +307,7 @@ fun Modifier.liquidGlass(
     touch: GlassTouch? = null,
     rim: Float = 1f,
     shadow: Float = 1f,
+    frosted: Boolean = false,
 ): Modifier = composed {
     val env = LocalGlass.current ?: return@composed this
     val mode = LocalGlassMode.current
@@ -334,7 +336,7 @@ fun Modifier.liquidGlass(
             val o = pos.value
             // Small lenses stay clear; large panels frost what is behind them.
             val scale = (size.minDimension / 200.dp.toPx()).coerceIn(0.2f, 1f)
-            val blur = (2.dp.toPx() + 22.dp.toPx() * s.frost) * scale
+            val blur = if (frosted) 18.dp.toPx() + 14.dp.toPx() * s.frost else (2.dp.toPx() + 22.dp.toPx() * s.frost) * scale
             try {
                 layer.record(IntSize(ceil(size.width + pad * 2).toInt(), ceil(size.height + pad * 2).toInt())) {
                     translate(pad - o.x, pad - o.y) { drawLayer(backdrop.layer) }
@@ -411,7 +413,7 @@ object GlassSupport {
 fun defaultTint(s: LauncherSettings): Color = Color.White.copy(alpha = 0.03f + 0.20f * s.glassTint)
 
 /** Darker glass used by menus and sheets so white text stays readable. */
-fun darkGlassTint(s: LauncherSettings): Color = Color(0xFF191B22).copy(alpha = 0.30f + 0.25f * s.glassTint)
+fun darkGlassTint(s: LauncherSettings): Color = Color(0xFF1B1D25).copy(alpha = 0.38f + 0.22f * s.glassTint)
 
 @RequiresApi(33)
 private fun RuntimeShader.common(

@@ -68,7 +68,7 @@ fun SettingsSheet(state: LauncherState) {
                 .padding(top = 28.dp)
                 .fillMaxWidth()
                 .graphicsLayer { translationY = drag.value }
-                .liquidGlass(40.dp, tint = darkGlassTint(s), refraction = 1.5f)
+                .liquidGlass(40.dp, tint = darkGlassTint(s), refraction = 1.5f, frosted = true)
                 .plainClick { },
         ) { InGlass {
             // Grabber + header (drag down to dismiss)
