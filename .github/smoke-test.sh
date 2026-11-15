@@ -38,6 +38,12 @@ sleep 2
 adb shell input swipe 950 1300 120 1300 260
 sleep 3
 shot page2
+# Open the first folder on page 2 (live-refracting glass panel), then close it.
+adb shell input tap 657 270
+sleep 3
+shot folder
+adb shell input keyevent KEYCODE_BACK
+sleep 2
 adb shell input swipe 950 1300 120 1300 260
 sleep 3
 shot library
@@ -55,6 +61,21 @@ sleep 1
 adb shell input swipe 760 1680 760 1680 1200
 sleep 2
 shot edit
+# Customize sheet
+adb shell input tap 290 60
+sleep 3
+shot settings
+adb shell input swipe 540 1500 540 700 300
+sleep 2
+shot settings2
+adb shell input keyevent KEYCODE_BACK
+sleep 1
+adb shell input keyevent KEYCODE_HOME
+sleep 2
+# Drag an icon across the grid (long-press, move, drop).
+adb shell input draganddrop 400 1400 800 1700 1800 || true
+sleep 2
+shot dragged
 adb shell input keyevent KEYCODE_HOME
 sleep 2
 

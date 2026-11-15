@@ -86,14 +86,14 @@ class IconCache(private val context: Context) {
                     val bgColor = averageColor(bg)
                     val tint = if (darkTile) Color(0xFF101114).copy(alpha = 0.55f)
                     else Color(bgColor).copy(alpha = if (isNearWhite(bgColor)) 0.28f else 0.42f)
-                    return IconRender(fgBmp.prepared(), false, tint)
+                    return IconRender(GlyphPainter.glassFinish(fgBmp, light = 120, shade = 36).prepared(), false, tint)
                 }
                 IconStyle.CLEAR, IconStyle.TINTED -> {
                     val mono = if (Build.VERSION.SDK_INT >= 33) d.monochrome else null
                     val src = mono?.let { layer(it, size) }
                         ?: fg?.let { layer(it, size) }?.takeIf { coverage(it) in 0.03f..0.78f }
                     val color = if (style == IconStyle.TINTED) ColorUtils.blendARGB(accent, 0xFFFFFFFF.toInt(), 0.55f) else 0xFFFFFFFF.toInt()
-                    return if (src != null) IconRender(silhouette(src, color).prepared(), false, null)
+                    return if (src != null) IconRender(GlyphPainter.glassFinish(silhouette(src, color), light = 0, shade = 40).prepared(), false, null)
                     else IconRender(washed(full(d, size), color).prepared(), true, null)
                 }
             }

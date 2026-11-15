@@ -70,7 +70,7 @@ fun SettingsSheet(state: LauncherState) {
                 .graphicsLayer { translationY = drag.value }
                 .liquidGlass(40.dp, tint = darkGlassTint(s), refraction = 1.5f)
                 .plainClick { },
-        ) {
+        ) { InGlass {
             // Grabber + header (drag down to dismiss)
             Column(
                 Modifier
@@ -159,7 +159,7 @@ fun SettingsSheet(state: LauncherState) {
                 BasicText("Glass Launcher", style = CaptionStyle, modifier = Modifier.align(Alignment.CenterHorizontally))
                 Spacer(Modifier.height(24.dp))
             }
-        }
+        } }
     }
 }
 

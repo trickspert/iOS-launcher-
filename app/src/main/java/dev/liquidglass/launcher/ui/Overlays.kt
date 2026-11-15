@@ -197,13 +197,13 @@ private fun ContextMenu(state: LauncherState, m: Overlay.Menu) {
             is MenuTarget.App -> state.appFor(t.appKey)?.let { app ->
                 val sz = with(density) { b.width.toDp() }
                 Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(b.left.roundToInt(), b.top.roundToInt()) }.graphicsLayer { scaleX = 1.06f; scaleY = 1.06f }) {
-                    IconTile(app, sz)
+                    OnWallpaper { IconTile(app, sz) }
                 }
             }
             is MenuTarget.Folder -> state.folder(t.folderId)?.let { f ->
                 val sz = with(density) { b.width.toDp() }
                 Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(b.left.roundToInt(), b.top.roundToInt()) }.graphicsLayer { scaleX = 1.06f; scaleY = 1.06f }) {
-                    FolderTile(f.apps, sz)
+                    OnWallpaper { FolderTile(f.apps, sz) }
                 }
             }
             is MenuTarget.Widget -> {}
@@ -334,7 +334,7 @@ private fun FolderOverlay(state: LauncherState, ov: Overlay.Folder) {
                 val cols = 3
                 val cell = maxWidth / cols
                 val icon = minOf(64.dp, cell * 0.72f)
-                Column(
+                InGlass { Column(
                     Modifier.heightIn(max = (cell + 16.dp) * 4).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
@@ -351,7 +351,7 @@ private fun FolderOverlay(state: LauncherState, ov: Overlay.Folder) {
                             }
                         }
                     }
-                }
+                } }
             }
         }
     }
@@ -508,7 +508,7 @@ private fun IconGridPanel(state: LauncherState, apps: List<AppEntry>) {
     ) {
         val cell = maxWidth / 4
         val icon = minOf(60.dp, cell * 0.74f)
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        InGlass { Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             apps.chunked(4).forEach { row ->
                 Row {
                     row.forEach { app ->
@@ -518,7 +518,7 @@ private fun IconGridPanel(state: LauncherState, apps: List<AppEntry>) {
                     }
                 }
             }
-        }
+        } }
     }
 }
 
@@ -530,9 +530,11 @@ private fun AppListPanel(state: LauncherState, apps: List<AppEntry>) {
             .liquidGlass(24.dp, tint = darkGlassTint(state.settings))
             .padding(vertical = 6.dp),
     ) {
-        apps.forEachIndexed { i, app ->
-            if (i > 0) Box(Modifier.padding(start = 66.dp).fillMaxWidth().height(0.5.dp).background(Color.White.copy(alpha = 0.12f)))
-            AppRow(state, app)
+        InGlass {
+            apps.forEachIndexed { i, app ->
+                if (i > 0) Box(Modifier.padding(start = 66.dp).fillMaxWidth().height(0.5.dp).background(Color.White.copy(alpha = 0.12f)))
+                AppRow(state, app)
+            }
         }
     }
 }
@@ -571,7 +573,7 @@ private fun AddWidgetSheet(state: LauncherState) {
                 .liquidGlass(38.dp, tint = darkGlassTint(state.settings), refraction = 1.4f)
                 .plainClick { }
                 .padding(20.dp),
-        ) {
+        ) { InGlass {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BasicText("Add Widget", style = TextStyle(color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
                 GlassButton(onClick = { state.overlay = null }, modifier = Modifier.size(32.dp)) { Symbol(Sym.CLOSE, 12.dp, Color.White) }
@@ -591,6 +593,6 @@ private fun AddWidgetSheet(state: LauncherState) {
             }
             Spacer(Modifier.height(6.dp))
             BasicText("Tap a widget to add it to this page.", style = CaptionStyle)
-        }
+        } }
     }
 }

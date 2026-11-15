@@ -38,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -80,6 +81,7 @@ fun WidgetBody(type: WidgetType, width: Dp, height: Dp, touch: GlassTouch?, modi
             WidgetType.BATTERY -> BatteryWidget()
             WidgetType.CALENDAR -> CalendarWidget()
             WidgetType.CLOCK -> ClockWidget()
+            WidgetType.MUSIC -> MusicWidget()
         }
     }
 }
@@ -95,6 +97,7 @@ fun widgetTap(type: WidgetType, state: dev.liquidglass.launcher.LauncherState) {
         }
         WidgetType.CLOCK -> state.repo.apps.firstOrNull { it.glyph == Glyph.CLOCK }?.let { state.launch(it, null) }
             ?: state.openPackageIntent(Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
+        WidgetType.MUSIC -> openMusic(state)
     }
 }
 
@@ -119,46 +122,143 @@ private fun BatteryWidget() {
         onDispose { runCatching { ctx.unregisterReceiver(r) } }
     }
     val frac by animateFloatAsState((level.coerceAtLeast(0)) / 100f, spring(dampingRatio = 0.8f, stiffness = 60f), label = "batt")
-    val ringColor = when {
-        charging -> Color(0xFF34C759)
-        level in 0..20 -> Color(0xFFFF453A)
-        else -> Color.White
-    }
-    Column(Modifier.fillMaxSize().padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.weight(1f).aspectRatio(1f), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxSize()) {
-                val sw = size.minDimension * 0.1f
-                val inset = sw / 2
-                val arcSize = Size(size.width - sw, size.height - sw)
-                drawArc(Color.White.copy(alpha = 0.22f), 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(sw))
-                drawArc(ringColor, -90f, 360f * frac, false, Offset(inset, inset), arcSize, style = Stroke(sw, cap = StrokeCap.Round))
-                // phone glyph
-                val pw = size.width * 0.2f
-                val ph = size.height * 0.34f
-                drawRoundRect(
-                    Color.White, topLeft = Offset(center.x - pw / 2, center.y - ph / 2), size = Size(pw, ph),
-                    cornerRadius = CornerRadius(pw * 0.28f, pw * 0.28f), style = Stroke(size.minDimension * 0.028f),
-                )
-                drawLine(Color.White, Offset(center.x - pw * 0.18f, center.y - ph * 0.36f), Offset(center.x + pw * 0.18f, center.y - ph * 0.36f), strokeWidth = size.minDimension * 0.02f, cap = StrokeCap.Round)
-            }
+    val low = level in 0..20 && !charging
+    // Like the iOS Batteries widget: a 2×2 set of rings. The first is this phone; the rest wait for devices.
+    Canvas(Modifier.fillMaxSize().padding(13.dp)) {
+        val gap = size.minDimension * 0.07f
+        val d = (size.minDimension - gap) / 2f
+        val sw = d * 0.105f
+        for (i in 0 until 4) {
+            val ox = (i % 2) * (d + gap) + (size.width - (2 * d + gap)) / 2f
+            val oy = (i / 2) * (d + gap) + (size.height - (2 * d + gap)) / 2f
+            val tl = Offset(ox + sw / 2, oy + sw / 2)
+            val arc = Size(d - sw, d - sw)
+            val c = Offset(ox + d / 2, oy + d / 2)
+            drawArc(Color.White.copy(alpha = if (i == 0) 0.22f else 0.13f), 0f, 360f, false, tl, arc, style = Stroke(sw))
+            if (i != 0) continue
+            val ring = if (low) Color(0xFFFF453A) else Color.White
             if (charging) {
-                Canvas(Modifier.fillMaxSize()) {
-                    val bw = size.width * 0.12f
-                    val bx = center.x + size.width * 0.28f
-                    val by = center.y - size.height * 0.36f
-                    val path = androidx.compose.ui.graphics.Path().apply {
-                        moveTo(bx + bw * 0.1f, by); lineTo(bx - bw * 0.45f, by + bw * 1.1f); lineTo(bx, by + bw * 1.1f)
-                        lineTo(bx - bw * 0.15f, by + bw * 2f); lineTo(bx + bw * 0.5f, by + bw * 0.8f); lineTo(bx, by + bw * 0.8f); close()
+                // Leave a notch at the top for the charging bolt.
+                val sweep = (360f * frac - 24f).coerceAtLeast(0f)
+                drawArc(ring, -78f, sweep, false, tl, arc, style = Stroke(sw, cap = StrokeCap.Round))
+                val bw = d * 0.085f
+                val bx = c.x
+                val by = oy - bw * 0.35f
+                val bolt = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(bx + bw * 0.35f, by); lineTo(bx - bw * 0.55f, by + bw * 1.25f); lineTo(bx - bw * 0.02f, by + bw * 1.25f)
+                    lineTo(bx - bw * 0.35f, by + bw * 2.3f); lineTo(bx + bw * 0.55f, by + bw * 0.95f); lineTo(bx + bw * 0.02f, by + bw * 0.95f); close()
+                }
+                drawPath(bolt, Color.White)
+            } else {
+                drawArc(ring, -90f, 360f * frac, false, tl, arc, style = Stroke(sw, cap = StrokeCap.Round))
+            }
+            val pw = d * 0.2f
+            val ph = d * 0.36f
+            drawRoundRect(
+                Color.White, topLeft = Offset(c.x - pw / 2, c.y - ph / 2), size = Size(pw, ph),
+                cornerRadius = CornerRadius(pw * 0.26f, pw * 0.26f), style = Stroke(d * 0.03f),
+            )
+            drawRoundRect(
+                Color.White.copy(alpha = 0.35f), topLeft = Offset(c.x - pw / 2, c.y - ph / 2), size = Size(pw, ph),
+                cornerRadius = CornerRadius(pw * 0.26f, pw * 0.26f),
+            )
+            drawLine(Color.White, Offset(c.x - pw * 0.16f, c.y + ph * 0.36f), Offset(c.x + pw * 0.16f, c.y + ph * 0.36f), strokeWidth = d * 0.022f, cap = StrokeCap.Round)
+        }
+    }
+}
+
+// ------------------------------------------------------------------ music
+
+fun openMusic(state: dev.liquidglass.launcher.LauncherState) {
+    val np = dev.liquidglass.launcher.NowPlaying
+    when {
+        !state.badgesEnabled -> state.openPackageIntent(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        np.pkg != null -> state.repo.apps.firstOrNull { it.packageName == np.pkg }?.let { state.launch(it, null) }
+        else -> state.repo.apps.firstOrNull { it.glyph == Glyph.MUSIC }?.let { state.launch(it, null) }
+    }
+}
+
+/** Now Playing, fed by the active media session (needs notification access, which also powers badges). */
+@Composable
+private fun MusicWidget() {
+    val state = LocalLauncher.current
+    val np = dev.liquidglass.launcher.NowPlaying
+    val art = np.art
+    Column(Modifier.fillMaxSize().padding(13.dp)) {
+        Row(Modifier.weight(1f)) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(
+                        androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFFFF6B81), Color(0xFFB04CE6))),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (art != null) {
+                    androidx.compose.foundation.Image(art, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                } else {
+                    NoteGlyph(Modifier.fillMaxSize(0.5f), Color.White.copy(alpha = 0.9f))
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            NoteGlyph(Modifier.width(17.dp).height(17.dp), Color.White.copy(alpha = 0.85f))
+        }
+        Spacer(Modifier.height(7.dp))
+        BasicText(
+            np.title ?: "Not Playing",
+            style = TextStyle(color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        BasicText(
+            when {
+                !state.badgesEnabled -> "Tap to connect"
+                np.title == null -> "Music"
+                else -> np.artist ?: ""
+            },
+            style = TextStyle(color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp),
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(7.dp))
+        InGlass {
+            GlassButton(
+                onClick = { if (np.canControl) np.toggle() else openMusic(state) },
+                modifier = Modifier.height(28.dp),
+            ) {
+                Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Canvas(Modifier.width(10.dp).height(11.dp)) {
+                        if (np.playing) {
+                            val w = size.width * 0.32f
+                            drawRoundRect(Color.White, size = Size(w, size.height), cornerRadius = CornerRadius(w * 0.3f))
+                            drawRoundRect(Color.White, topLeft = Offset(size.width - w, 0f), size = Size(w, size.height), cornerRadius = CornerRadius(w * 0.3f))
+                        } else {
+                            val tri = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, 0f); lineTo(size.width, size.height / 2f); lineTo(0f, size.height); close()
+                            }
+                            drawPath(tri, Color.White)
+                        }
                     }
-                    drawPath(path, Color(0xFF34C759))
+                    Spacer(Modifier.width(6.dp))
+                    BasicText(if (np.playing) "Pause" else "Play", style = TextStyle(color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
-        BasicText(
-            if (level < 0) "—" else "$level%",
-            style = TextStyle(color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
-        )
+    }
+}
+
+@Composable
+private fun NoteGlyph(modifier: Modifier, color: Color) {
+    Canvas(modifier) {
+        val s = size.minDimension
+        val beam = androidx.compose.ui.graphics.Path().apply {
+            moveTo(s * 0.34f, s * 0.20f); lineTo(s * 0.86f, s * 0.08f); lineTo(s * 0.86f, s * 0.26f); lineTo(s * 0.34f, s * 0.38f); close()
+        }
+        drawPath(beam, color)
+        drawRect(color, topLeft = Offset(s * 0.34f, s * 0.2f), size = Size(s * 0.085f, s * 0.58f))
+        drawRect(color, topLeft = Offset(s * 0.775f, s * 0.1f), size = Size(s * 0.085f, s * 0.56f))
+        drawOval(color, topLeft = Offset(s * 0.13f, s * 0.66f), size = Size(s * 0.3f, s * 0.24f))
+        drawOval(color, topLeft = Offset(s * 0.565f, s * 0.54f), size = Size(s * 0.3f, s * 0.24f))
     }
 }
 

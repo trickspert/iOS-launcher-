@@ -82,7 +82,6 @@ class MainActivity : ComponentActivity() {
 
         app.repo.start()
         setContent { LauncherRoot(state) }
-        state.playEnter()
     }
 
     override fun onResume() {

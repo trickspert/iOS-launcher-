@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RadialGradient
@@ -39,8 +40,9 @@ object Wallpapers {
                 if (b != null) return centerCrop(b, w, h)
             }
         }
-        // Gradients look identical at half resolution and save a lot of memory.
-        return generate(id, max(1, w / 2), max(1, h / 2))
+        // Crisp edges matter (the glass refracts them), so render at screen resolution up to 1080p wide.
+        val scale = minOf(1f, 1080f / w)
+        return generate(id, max(1, (w * scale).toInt()), max(1, (h * scale).toInt()))
     }
 
     fun importPhoto(ctx: Context, uri: Uri, w: Int, h: Int): Boolean = runCatching {
@@ -73,101 +75,107 @@ object Wallpapers {
         return out
     }
 
+    private class Disc(
+        val cx: Float, val cy: Float, val r: Float, val c0: Int, val c1: Int,
+        val edge: Float = 0.4f, val sy: Float = 1f, val rot: Float = 0f, val shade: Float = 0f, val glow: Float = 0f,
+    )
+
+    private class Design(val bg: List<Pair<Float, Int>>, val discs: List<Disc>)
+
+    private fun rgba(r: Int, g: Int, b: Int, a: Float) = Color.argb((a * 255).toInt(), r, g, b)
+
+    /** Each wallpaper is a soft gradient with crisp, lit glass discs — detail for the glass to refract. */
+    private val designs: Map<String, Design> = mapOf(
+        "aurora" to Design(
+            listOf(0f to 0xFF7FA3DE.toInt(), 0.55f to 0xFF4F7DD2.toInt(), 1f to 0xFF86B9CC.toInt()),
+            listOf(
+                Disc(1.28f, 0.30f, 1.02f, rgba(168, 196, 240, 0.78f), rgba(120, 160, 226, 0.55f), edge = 0.55f, glow = 0.12f),
+                Disc(-0.42f, 0.50f, 0.92f, rgba(52, 98, 205, 0.92f), rgba(36, 78, 186, 0.86f), edge = 0.35f, shade = 0.25f),
+                Disc(0.80f, 0.86f, 0.80f, rgba(96, 140, 214, 0.85f), rgba(126, 186, 204, 0.8f), edge = 0.5f, sy = 0.52f, rot = -16f, glow = 0.14f),
+                Disc(0.10f, 1.12f, 0.70f, rgba(64, 112, 200, 0.6f), rgba(90, 150, 200, 0.5f), edge = 0.3f, shade = 0.15f),
+            ),
+        ),
+        "lavender" to Design(
+            listOf(0f to 0xFFB09AD0.toInt(), 0.5f to 0xFF8590D8.toInt(), 1f to 0xFF5B7FCB.toInt()),
+            listOf(
+                Disc(1.2f, 0.18f, 0.9f, rgba(200, 180, 235, 0.6f), rgba(150, 150, 225, 0.4f), edge = 0.45f, glow = 0.1f),
+                Disc(-0.3f, 0.75f, 0.85f, rgba(96, 110, 214, 0.6f), rgba(70, 100, 200, 0.6f), edge = 0.3f, shade = 0.18f),
+                Disc(0.85f, 1.02f, 0.7f, rgba(150, 140, 226, 0.5f), rgba(110, 140, 220, 0.5f), edge = 0.4f, sy = 0.55f, rot = -14f, glow = 0.1f),
+            ),
+        ),
+        "midnight" to Design(
+            listOf(0f to 0xFF0A1230.toInt(), 0.6f to 0xFF152A66.toInt(), 1f to 0xFF27489C.toInt()),
+            listOf(
+                Disc(1.25f, 0.35f, 1.0f, rgba(48, 70, 160, 0.75f), rgba(24, 40, 110, 0.6f), edge = 0.35f, glow = 0.08f),
+                Disc(-0.4f, 0.55f, 0.9f, rgba(16, 28, 84, 0.92f), rgba(10, 18, 60, 0.9f), edge = 0.22f, shade = 0.3f),
+                Disc(0.8f, 0.9f, 0.8f, rgba(70, 60, 190, 0.7f), rgba(40, 90, 190, 0.7f), edge = 0.35f, sy = 0.5f, rot = -16f, glow = 0.1f),
+            ),
+        ),
+        "sunrise" to Design(
+            listOf(0f to 0xFFF7B983.toInt(), 0.45f to 0xFFE77C97.toInt(), 1f to 0xFF6F5CC8.toInt()),
+            listOf(
+                Disc(1.22f, 0.24f, 0.95f, rgba(255, 214, 170, 0.7f), rgba(246, 150, 150, 0.5f), edge = 0.5f, glow = 0.12f),
+                Disc(-0.38f, 0.58f, 0.9f, rgba(214, 92, 140, 0.78f), rgba(150, 76, 180, 0.78f), edge = 0.32f, shade = 0.18f),
+                Disc(0.82f, 0.9f, 0.8f, rgba(170, 96, 200, 0.7f), rgba(96, 96, 210, 0.7f), edge = 0.42f, sy = 0.5f, rot = -16f, glow = 0.1f),
+            ),
+        ),
+        "mint" to Design(
+            listOf(0f to 0xFFBDEEDC.toInt(), 0.5f to 0xFF62B6BA.toInt(), 1f to 0xFF2F628F.toInt()),
+            listOf(
+                Disc(1.25f, 0.28f, 1.0f, rgba(220, 250, 240, 0.65f), rgba(140, 214, 210, 0.5f), edge = 0.55f, glow = 0.12f),
+                Disc(-0.4f, 0.52f, 0.9f, rgba(52, 150, 168, 0.85f), rgba(40, 110, 150, 0.82f), edge = 0.32f, shade = 0.2f),
+                Disc(0.8f, 0.88f, 0.8f, rgba(70, 150, 180, 0.75f), rgba(56, 104, 160, 0.75f), edge = 0.42f, sy = 0.5f, rot = -16f, glow = 0.1f),
+            ),
+        ),
+        "graphite" to Design(
+            listOf(0f to 0xFF3C4048.toInt(), 0.5f to 0xFF1F2128.toInt(), 1f to 0xFF0E0F13.toInt()),
+            listOf(
+                Disc(1.25f, 0.32f, 1.0f, rgba(92, 98, 112, 0.7f), rgba(48, 52, 62, 0.6f), edge = 0.4f, glow = 0.08f),
+                Disc(-0.4f, 0.55f, 0.9f, rgba(22, 24, 30, 0.92f), rgba(12, 13, 17, 0.9f), edge = 0.2f, shade = 0.2f),
+                Disc(0.8f, 0.9f, 0.8f, rgba(56, 76, 130, 0.6f), rgba(36, 44, 70, 0.7f), edge = 0.32f, sy = 0.5f, rot = -16f, glow = 0.08f),
+            ),
+        ),
+    )
+
     fun generate(id: String, w: Int, h: Int): Bitmap {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val wf = w.toFloat()
         val hf = h.toFloat()
-        val p = Paint(Paint.ANTI_ALIAS_FLAG)
-
-        fun vertical(vararg stops: Pair<Float, Int>) {
-            p.shader = LinearGradient(0f, 0f, 0f, hf, stops.map { it.second }.toIntArray(), stops.map { it.first }.toFloatArray(), Shader.TileMode.CLAMP)
-            c.drawRect(0f, 0f, wf, hf, p)
-            p.shader = null
-        }
-
-        fun diagonal(vararg stops: Pair<Float, Int>) {
-            p.shader = LinearGradient(0f, 0f, wf, hf, stops.map { it.second }.toIntArray(), stops.map { it.first }.toFloatArray(), Shader.TileMode.CLAMP)
-            c.drawRect(0f, 0f, wf, hf, p)
-            p.shader = null
-        }
-
-        /** Soft translucent blob: an ellipse filled with a radial falloff, optionally rotated. */
-        fun blob(cx: Float, cy: Float, rx: Float, ry: Float, deg: Float, color: Int, fadeTo: Int = color and 0x00FFFFFF) {
+        val design = designs[id] ?: designs.getValue("aurora")
+        val p = Paint(Paint.ANTI_ALIAS_FLAG or Paint.DITHER_FLAG)
+        p.shader = LinearGradient(0f, 0f, 0f, hf, design.bg.map { it.second }.toIntArray(), design.bg.map { it.first }.toFloatArray(), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, wf, hf, p)
+        for (d in design.discs) {
             c.save()
-            c.rotate(deg, cx * wf, cy * hf)
-            p.shader = RadialGradient(cx * wf, cy * hf, max(rx * wf, ry * hf), color, fadeTo, Shader.TileMode.CLAMP)
-            c.drawOval(RectF(cx * wf - rx * wf, cy * hf - ry * hf, cx * wf + rx * wf, cy * hf + ry * hf), p)
+            c.translate(d.cx * wf, d.cy * hf)
+            c.rotate(d.rot)
+            c.scale(1f, d.sy)
+            val r = d.r * wf
+            p.style = Paint.Style.FILL
+            p.shader = LinearGradient(-r, -r, r, r, d.c0, d.c1, Shader.TileMode.CLAMP)
+            c.drawCircle(0f, 0f, r, p)
+            if (d.shade > 0f) {
+                // Darkening towards the rim reads as the disc's thickness.
+                p.shader = RadialGradient(0f, 0f, r, intArrayOf(rgba(10, 30, 90, 0f), rgba(10, 30, 90, 0f), rgba(10, 30, 90, d.shade)), floatArrayOf(0f, 0.86f, 1f), Shader.TileMode.CLAMP)
+                c.drawCircle(0f, 0f, r, p)
+            }
+            if (d.glow > 0f) {
+                p.shader = RadialGradient(0f, 0f, r, intArrayOf(0x00FFFFFF, 0x00FFFFFF, rgba(255, 255, 255, d.glow)), floatArrayOf(0f, 0.9f, 1f), Shader.TileMode.CLAMP)
+                c.drawCircle(0f, 0f, r, p)
+            }
             p.shader = null
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = 1.4f * wf / 390f
+            p.color = rgba(255, 255, 255, d.edge)
+            c.drawCircle(0f, 0f, r - p.strokeWidth / 2f, p)
             c.restore()
-        }
-
-        /** Thin light edge along an ellipse arc, like the glass ribbons on iOS wallpapers. */
-        fun arcLine(cx: Float, cy: Float, rx: Float, ry: Float, deg: Float, start: Float, sweep: Float, alpha: Int, width: Float) {
-            c.save()
-            c.rotate(deg, cx * wf, cy * hf)
-            val sp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE; strokeWidth = width * wf / 390f
-                color = (alpha shl 24) or 0xFFFFFF
-            }
-            c.drawArc(RectF(cx * wf - rx * wf, cy * hf - ry * hf, cx * wf + rx * wf, cy * hf + ry * hf), start, sweep, false, sp)
-            c.restore()
-        }
-
-        /** A solid ribbon (ellipse) with a highlighted rim — the main iOS 26 wallpaper motif. */
-        fun ribbon(cx: Float, cy: Float, rx: Float, ry: Float, deg: Float, inner: Int, outer: Int) {
-            c.save()
-            c.rotate(deg, cx * wf, cy * hf)
-            val r = RectF(cx * wf - rx * wf, cy * hf - ry * hf, cx * wf + rx * wf, cy * hf + ry * hf)
-            p.shader = LinearGradient(r.left, r.top, r.right, r.bottom, inner, outer, Shader.TileMode.CLAMP)
-            c.drawOval(r, p)
-            p.shader = null
-            c.restore()
-        }
-
-        when (id) {
-            "lavender" -> {
-                vertical(0f to 0xFFA895C8.toInt(), 0.45f to 0xFF7D8ED3.toInt(), 1f to 0xFF5B7FCB.toInt())
-                blob(0.85f, 0.15f, 0.7f, 0.25f, -20f, 0x66C9B6E8)
-                blob(0.1f, 0.85f, 0.8f, 0.3f, 15f, 0x553D63C2)
-            }
-            "midnight" -> {
-                diagonal(0f to 0xFF0B1433.toInt(), 0.6f to 0xFF1A2E6E.toInt(), 1f to 0xFF2B4FA8.toInt())
-                ribbon(-0.1f, 0.62f, 0.95f, 0.3f, -28f, 0xFF1F3C8F.toInt(), 0xFF0D1A44.toInt())
-                blob(0.9f, 0.3f, 0.7f, 0.28f, -30f, 0x885E4BD6.toInt())
-                arcLine(-0.1f, 0.62f, 0.95f, 0.3f, -28f, 200f, 120f, 70, 1.5f)
-            }
-            "sunrise" -> {
-                vertical(0f to 0xFFF6B07A.toInt(), 0.45f to 0xFFE27399.toInt(), 1f to 0xFF6B5BC9.toInt())
-                blob(0.15f, 0.25f, 0.8f, 0.3f, 20f, 0x88FFD3A5.toInt())
-                ribbon(1.05f, 0.7f, 0.8f, 0.28f, -35f, 0x99B35FD0.toInt(), 0x33E27399)
-                arcLine(1.05f, 0.7f, 0.8f, 0.28f, -35f, 140f, 110f, 80, 1.5f)
-            }
-            "mint" -> {
-                vertical(0f to 0xFFB5EAD7.toInt(), 0.5f to 0xFF5FB3B8.toInt(), 1f to 0xFF2E5E8C.toInt())
-                blob(0.85f, 0.3f, 0.7f, 0.26f, -25f, 0x77E8FFF6)
-                ribbon(-0.15f, 0.7f, 0.9f, 0.27f, -30f, 0xAA3A8FA6.toInt(), 0x2234617E)
-                arcLine(-0.15f, 0.7f, 0.9f, 0.27f, -30f, 250f, 120f, 80, 1.5f)
-            }
-            "graphite" -> {
-                vertical(0f to 0xFF3A3D44.toInt(), 0.5f to 0xFF1E2026.toInt(), 1f to 0xFF0E0F12.toInt())
-                ribbon(1.0f, 0.45f, 0.8f, 0.3f, -32f, 0xFF4B5060.toInt(), 0xFF1A1C22.toInt())
-                arcLine(1.0f, 0.45f, 0.8f, 0.3f, -32f, 120f, 120f, 70, 1.5f)
-                blob(0.1f, 0.85f, 0.7f, 0.3f, 0f, 0x553E6BD6)
-            }
-            else -> { // aurora
-                vertical(0f to 0xFF86A9E3.toInt(), 0.5f to 0xFF5D88D6.toInt(), 1f to 0xFF7FB3C9.toInt())
-                blob(-0.15f, 0.62f, 0.95f, 0.30f, -28f, 0xD92855BE.toInt())
-                blob(0.95f, 0.42f, 0.75f, 0.26f, -34f, 0xE6BED7FA.toInt(), 0x0096B9F0)
-                arcLine(-0.15f, 0.62f, 0.95f, 0.30f, -28f, -69f, 103f, 90, 1.5f)
-                arcLine(0.95f, 0.42f, 0.75f, 0.26f, -34f, 126f, 97f, 64, 1.5f)
-            }
         }
         return bmp
     }
 
     /** Fast frosted copy: progressive downscale then a 3-pass box blur. */
-    fun blur(src: Bitmap, frost: Float, screenW: Int): Bitmap {
+    fun blur(src: Bitmap, screenW: Int): Bitmap {
         val targetW = max(48, screenW / 6)
         var cur = src
         while (cur.width / 2 >= targetW) {
@@ -176,8 +184,7 @@ object Wallpapers {
         val tw = targetW.coerceAtMost(cur.width)
         val th = max(1, (cur.height * tw.toFloat() / cur.width).roundToInt())
         val small = Bitmap.createScaledBitmap(cur, tw, th, true).copy(Bitmap.Config.ARGB_8888, true)
-        val radius = (1 + frost * 5f).roundToInt()
-        boxBlur(small, radius, 3)
+        boxBlur(small, 4, 3)
         return small
     }
 

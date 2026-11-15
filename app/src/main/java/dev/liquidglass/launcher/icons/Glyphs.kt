@@ -34,7 +34,33 @@ object GlyphPainter {
         val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         G(c, sizePx.toFloat(), style, accent).draw(glyph, now)
-        return bmp
+        return glassFinish(bmp)
+    }
+
+    /**
+     * Gives a flat glyph the layered-glass look of iOS 26 icons: a thin light edge where it faces
+     * the light (top-left) and a faint shade on the opposite edge, so it reads as a raised piece of glass.
+     */
+    fun glassFinish(src: Bitmap, light: Int = 150, shade: Int = 46): Bitmap {
+        val w = src.width
+        val h = src.height
+        val d = (w * 0.013f).coerceAtLeast(1f)
+        val edge = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val ec = Canvas(edge)
+        val cut = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val oc = Canvas(out)
+        oc.drawBitmap(src, 0f, 0f, null)
+        // shade: silhouette minus itself shifted up-left -> bottom-right sliver
+        ec.drawBitmap(src, 0f, 0f, Paint().apply { colorFilter = android.graphics.PorterDuffColorFilter(0xFF0A1430.toInt(), PorterDuff.Mode.SRC_IN) })
+        ec.drawBitmap(src, -d, -d, cut)
+        oc.drawBitmap(edge, 0f, 0f, Paint().apply { alpha = shade })
+        // light: silhouette minus itself shifted down-right -> top-left sliver
+        edge.eraseColor(0)
+        ec.drawBitmap(src, 0f, 0f, Paint().apply { colorFilter = android.graphics.PorterDuffColorFilter(0xFFFFFFFF.toInt(), PorterDuff.Mode.SRC_IN) })
+        ec.drawBitmap(src, d, d, cut)
+        oc.drawBitmap(edge, 0f, 0f, Paint().apply { alpha = light })
+        return out
     }
 
     /** Small monochrome symbol used in menus / search fields. */

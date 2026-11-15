@@ -6,7 +6,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 enum class WidgetType(val title: String) {
-    BATTERY("Batteries"), CALENDAR("Calendar"), CLOCK("Clock")
+    BATTERY("Batteries"), CALENDAR("Calendar"), CLOCK("Clock"), MUSIC("Music")
 }
 
 sealed class HomeItem {

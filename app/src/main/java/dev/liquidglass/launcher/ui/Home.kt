@@ -58,6 +58,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -85,7 +87,12 @@ import dev.liquidglass.launcher.data.FolderItem
 import dev.liquidglass.launcher.data.HomeItem
 import dev.liquidglass.launcher.data.WidgetItem
 import dev.liquidglass.launcher.data.pack
+import dev.liquidglass.launcher.glass.Backdrop
 import dev.liquidglass.launcher.glass.GlassEnv
+import dev.liquidglass.launcher.glass.GlassMode
+import dev.liquidglass.launcher.glass.LocalBackdrop
+import dev.liquidglass.launcher.glass.LocalGlassMode
+import dev.liquidglass.launcher.glass.backdropSource
 import dev.liquidglass.launcher.glass.GlassTouch
 import dev.liquidglass.launcher.glass.LocalGlass
 import dev.liquidglass.launcher.glass.liquidGlass
@@ -134,7 +141,7 @@ fun LauncherRoot(state: LauncherState) {
             val wPx = constraints.maxWidth
             val hPx = constraints.maxHeight
             val s = state.settings
-            LaunchedEffect(wPx, hPx, s.wallpaper, s.frost, s.wallpaperVersion) {
+            LaunchedEffect(wPx, hPx, s.wallpaper, s.wallpaperVersion) {
                 state.screen = Size(wPx.toFloat(), hPx.toFloat())
                 state.ensureWallpaper(wPx, hPx)
             }
@@ -146,39 +153,49 @@ fun LauncherRoot(state: LauncherState) {
             }
             val wp = state.wallpaper
             val bl = state.blurred
-            if (wp != null && bl != null) {
-                val env = remember(bl, wPx, hPx) { GlassEnv(bl, Size(wPx.toFloat(), hPx.toFloat()), state.light, s) }
+            val sh = state.sharp
+            if (wp != null && bl != null && sh != null) {
+                val env = remember(bl, sh, wPx, hPx) {
+                    GlassEnv(sh, bl, Size(wPx.toFloat(), hPx.toFloat()), state.light, s) { state.zoom.value }
+                }
+                val backdropLayer = rememberGraphicsLayer()
+                val backdrop = remember(backdropLayer) { Backdrop(backdropLayer) }
+                LaunchedEffect(Unit) { state.playEnter() }
                 CompositionLocalProvider(LocalGlass provides env) {
-                    val ov = state.overlay
-                    val blurOn = ov != null && ov !is Overlay.Settings
-                    val blur by animateDpAsState(
-                        if (blurOn) 22.dp else (16.dp * state.spotlightPull.coerceIn(0f, 1f)),
-                        spring(stiffness = 500f), label = "blur",
-                    )
-                    val enter = state.enter.value
-                    Image(
-                        wp, null,
-                        Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                val sc = 1f + (1f - enter) * 0.06f
-                                scaleX = sc; scaleY = sc
-                            },
-                        contentScale = ContentScale.FillBounds,
-                    )
-                    HomeScreen(
-                        state,
-                        Modifier
-                            .graphicsLayer {
-                                val sc = 1f + (1f - enter) * 0.18f
-                                scaleX = sc; scaleY = sc
-                                alpha = enter.coerceIn(0f, 1f)
-                                translationY = state.spotlightPull.coerceIn(0f, 1.2f) * 40.dp.toPx()
-                            }
-                            .then(if (blur > 0.5.dp) Modifier.blur(blur) else Modifier),
-                    )
-                    Overlays(state)
-                    DragLayer(state)
+                    val pull = state.spotlightPull.coerceIn(0f, 1f)
+                    // Panels do their own frosting and refraction; the home only softens a little behind them.
+                    val blurTarget = when (state.overlay) {
+                        is Overlay.Spotlight -> 20.dp
+                        is Overlay.Folder -> 12.dp
+                        is Overlay.Menu -> 7.dp
+                        is Overlay.AddWidget -> 5.dp
+                        else -> 14.dp * pull
+                    }
+                    val blur by animateDpAsState(blurTarget, spring(stiffness = 500f), label = "blur")
+                    Box(Modifier.fillMaxSize().backdropSource(backdrop)) {
+                        Image(
+                            wp, null,
+                            Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    val sc = env.wallScale
+                                    val shift = env.wallShift
+                                    scaleX = sc; scaleY = sc
+                                    translationX = shift.x; translationY = shift.y
+                                },
+                            contentScale = ContentScale.FillBounds,
+                        )
+                        HomeScreen(
+                            state,
+                            Modifier
+                                .graphicsLayer { translationY = state.spotlightPull.coerceIn(0f, 1.2f) * 40.dp.toPx() }
+                                .then(if (blur > 0.5.dp) Modifier.blur(blur) else Modifier),
+                        )
+                    }
+                    CompositionLocalProvider(LocalBackdrop provides backdrop, LocalGlassMode provides GlassMode.BACKDROP) {
+                        Overlays(state)
+                        DragLayer(state)
+                    }
                 }
             }
         }
@@ -196,15 +213,15 @@ fun HomeScreen(state: LauncherState, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(state.repo.apps, state.repo.loaded) { state.syncLayout() }
 
-    Box(modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier.fillMaxSize()) {
+    val cols = s.columns
+    val hPad = if (cols == 4) 22.dp else 12.dp
+    val cellW = (maxWidth - hPad * 2) / cols
+    val icon = min((cellW * 0.76f).value, if (cols == 4) 66f else 58f).dp
     Column(Modifier.fillMaxSize()) {
         // Ignore visibility so the grid doesn't jump when edit mode hides the status bar.
         Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBarsIgnoringVisibility))
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val cols = s.columns
-            val hPad = if (cols == 4) 22.dp else 12.dp
-            val cellW = (maxWidth - hPad * 2) / cols
-            val icon = min((cellW * 0.76f).value, if (cols == 4) 66f else 58f).dp
             val topPad = 14.dp
             val availH = maxHeight - topPad
             val rows = (availH / (icon + 30.dp)).toInt().coerceIn(4, if (cols == 4) 6 else 7)
@@ -240,20 +257,23 @@ fun HomeScreen(state: LauncherState, modifier: Modifier = Modifier) {
                 }
             }
         }
-        val libraryProgress = ((pager.currentPage + pager.currentPageOffsetFraction) - (homeCount - 1)).coerceIn(0f, 1f)
-        Box(Modifier.fillMaxWidth().height(46.dp), contentAlignment = Alignment.Center) {
+        // The dock and search pill sink away as icons fly out (app launch) and on the App Library page.
+        val sink = Modifier
+            .offset {
+                val lib = ((pager.currentPage + pager.currentPageOffsetFraction) - (homeCount - 1)).coerceIn(0f, 1f)
+                IntOffset(0, ((flyEase(state.zoom.value) + lib).coerceAtMost(1f) * 110.dp.toPx()).roundToInt())
+            }
+            .graphicsLayer {
+                val lib = ((pager.currentPage + pager.currentPageOffsetFraction) - (homeCount - 1)).coerceIn(0f, 1f)
+                alpha = (1f - lib) * (1f - flyEase(state.zoom.value)).coerceIn(0f, 1f)
+                compositingStrategy = CompositingStrategy.ModulateAlpha
+            }
+        Box(Modifier.fillMaxWidth().height(46.dp).graphicsLayer { alpha = 1f - flyEase(state.zoom.value) }, contentAlignment = Alignment.Center) {
             SearchOrDots(state, pager, homeCount)
         }
         if (state.crashReport != null) CrashBanner(state)
         else if (!state.isDefaultHome && !s.bannerDismissed) DefaultBanner(state)
-        Dock(
-            state,
-            iconSize = if (s.columns == 4) 62.dp else 56.dp,
-            modifier = Modifier.graphicsLayer {
-                alpha = 1f - libraryProgress
-                translationY = libraryProgress * 60.dp.toPx()
-            },
-        )
+        Dock(state, icon, hPad, cellW, sink)
         Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
         Spacer(Modifier.height(10.dp))
     }
@@ -323,7 +343,8 @@ fun HomePage(state: LauncherState, page: Int, m: HomeMetrics) {
                 if (cell != null) {
                     val target = with(density) { IntOffset((cell.x * m.cellW.toPx()).roundToInt(), (cell.y * m.cellH.toPx()).roundToInt()) }
                     val inset = with(density) { Offset(((m.cellW - m.icon) / 2).toPx(), m.iconTop.toPx()) }
-                    GridSlot(state, item, target, { pageOrigin + inset }) {
+                    val centre = with(density) { Offset(m.cellW.toPx() * item.spanX / 2f, m.cellH.toPx() * item.spanY / 2f) }
+                    GridSlot(state, item, target, { pageOrigin + inset }, centre - inset) {
                         HomeItemView(state, item, page, m)
                     }
                 }
@@ -332,12 +353,19 @@ fun HomePage(state: LauncherState, page: Int, m: HomeMetrics) {
     }
 }
 
+/** Eased amount (0..1) by which icons are flown apart. */
+fun flyEase(z: Float): Float {
+    val t = z.coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)
+}
+
 @Composable
 private fun GridSlot(
     state: LauncherState,
     item: HomeItem,
     target: IntOffset,
     contentOrigin: () -> Offset,
+    centerOffset: Offset,
     content: @Composable () -> Unit,
 ) {
     val anim = remember { Animatable(target, IntOffset.VectorConverter) }
@@ -346,10 +374,29 @@ private fun GridSlot(
         if (anim.value != target) anim.animateTo(target, spring(dampingRatio = 0.78f, stiffness = 380f))
     }
     val hidden = state.drag?.item?.id == item.id || state.lastDrop?.first == item.id
+    // How far this slot is "dived": slots further from the pivot lag behind, so icons arrive in a wave.
+    fun dive(): Pair<Float, Offset> {
+        val z = state.zoom.value
+        if (z <= 0.001f) return 0f to Offset.Zero
+        val sc = state.screen
+        val pivot = state.zoomPivot.takeIf { it != Offset.Unspecified } ?: Offset(sc.width / 2f, sc.height / 2f)
+        val from = contentOrigin() + Offset(target.x.toFloat(), target.y.toFloat()) + centerOffset - pivot
+        val far = (from.getDistance() / sc.height.coerceAtLeast(1f)).coerceIn(0f, 1f)
+        return flyEase(z * (1f + 0.5f * far)) to from
+    }
     Box(
         Modifier
-            .offset { anim.value }
-            .graphicsLayer { alpha = if (hidden) 0f else 1f },
+            .offset {
+                val (e, from) = dive()
+                anim.value + (from * (e * 0.85f)).round()
+            }
+            .graphicsLayer {
+                val (e, _) = dive()
+                val sc = 1f + 0.5f * e
+                scaleX = sc; scaleY = sc
+                alpha = if (hidden) 0f else (1f - e * 1.15f).coerceIn(0f, 1f)
+                compositingStrategy = CompositingStrategy.ModulateAlpha
+            },
     ) { content() }
 }
 
@@ -413,42 +460,45 @@ private fun WidgetSlot(state: LauncherState, item: WidgetItem, page: Int, m: Hom
 }
 
 @Composable
-fun Dock(state: LauncherState, iconSize: Dp, modifier: Modifier = Modifier) {
+fun Dock(state: LauncherState, iconSize: Dp, hPad: Dp, cellW: Dp, modifier: Modifier = Modifier) {
     val keys = state.layout.dock
     val apps = keys.mapNotNull { state.appFor(it) }
     val density = LocalDensity.current
+    val side = 12.dp
     var dockOrigin by remember { mutableStateOf(Offset.Zero) }
     Box(
         modifier
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = side)
             .fillMaxWidth()
             .height(iconSize + 28.dp)
             .onGloballyPositioned {
                 state.dockBounds = it.boundsInWindow()
                 dockOrigin = it.positionInWindow()
+                with(density) {
+                    state.dockSlotLeft = dockOrigin.x + (hPad - side).toPx()
+                    state.dockSlotW = cellW.toPx()
+                }
             }
-            .liquidGlass(36.dp, refraction = 1.35f),
+            .liquidGlass(38.dp, refraction = 1.5f),
     ) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            val n = max(1, apps.size)
-            val slot = maxWidth / n
-            apps.forEachIndexed { i, app ->
-                key(app.key) {
-                    val target = with(density) { IntOffset((slot * i + (slot - iconSize) / 2).roundToPx(), 14.dp.roundToPx()) }
-                    val anim = remember { Animatable(target, IntOffset.VectorConverter) }
-                    LaunchedEffect(target, state.dropSerial) {
-                        state.takeDrop("a:" + app.key)?.let { win -> anim.snapTo((win - dockOrigin).round()) }
-                        if (anim.value != target) anim.animateTo(target, spring(dampingRatio = 0.78f, stiffness = 380f))
-                    }
-                    val hidden = state.drag?.item?.id == "a:" + app.key || state.lastDrop?.first == "a:" + app.key
-                    Box(Modifier.offset { anim.value }.graphicsLayer { alpha = if (hidden) 0f else 1f }) {
-                        AppIcon(
-                            app, iconSize, showLabel = false, source = Source.Dock,
-                            homeItem = AppItem(app.key),
-                            onRemove = { state.removeFromHome(MenuTarget.App(app.key, Source.Dock)) },
-                            modifier = Modifier.offset(x = (-11).dp),
-                        )
-                    }
+        // Dock icons sit exactly under the home grid columns, centred when there are fewer of them.
+        val start = (hPad - side) + cellW * (state.dockCapacity - apps.size) / 2f
+        apps.forEachIndexed { i, app ->
+            key(app.key) {
+                val target = with(density) { IntOffset((start + cellW * i + (cellW - iconSize) / 2).roundToPx(), 14.dp.roundToPx()) }
+                val anim = remember { Animatable(target, IntOffset.VectorConverter) }
+                LaunchedEffect(target, state.dropSerial) {
+                    state.takeDrop("a:" + app.key)?.let { win -> anim.snapTo((win - dockOrigin).round()) }
+                    if (anim.value != target) anim.animateTo(target, spring(dampingRatio = 0.78f, stiffness = 380f))
+                }
+                val hidden = state.drag?.item?.id == "a:" + app.key || state.lastDrop?.first == "a:" + app.key
+                Box(Modifier.offset { anim.value }.graphicsLayer { alpha = if (hidden) 0f else 1f; compositingStrategy = CompositingStrategy.ModulateAlpha }) {
+                    AppIcon(
+                        app, iconSize, showLabel = false, source = Source.Dock,
+                        homeItem = AppItem(app.key),
+                        onRemove = { state.removeFromHome(MenuTarget.App(app.key, Source.Dock)) },
+                        modifier = Modifier.offset(x = (-11).dp),
+                    )
                 }
             }
         }
@@ -534,7 +584,7 @@ private fun DefaultBanner(state: LauncherState) {
             .liquidGlass(22.dp, tint = dev.liquidglass.launcher.glass.darkGlassTint(state.settings))
             .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-    ) {
+    ) { InGlass {
         Column(Modifier.weight(1f)) {
             BasicText("Make Glass your Home Screen", style = TextStyle(color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
             BasicText("So the Home button always brings you here.", style = TextStyle(color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp))
@@ -546,7 +596,7 @@ private fun DefaultBanner(state: LauncherState) {
         GlassButton(onClick = { state.settings.bannerDismissed = true }, modifier = Modifier.size(32.dp)) {
             Symbol(Sym.CLOSE, 12.dp, Color.White)
         }
-    }
+    } }
 }
 
 @Composable
@@ -558,7 +608,7 @@ private fun CrashBanner(state: LauncherState) {
             .liquidGlass(22.dp, tint = dev.liquidglass.launcher.glass.darkGlassTint(state.settings))
             .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-    ) {
+    ) { InGlass {
         Column(Modifier.weight(1f)) {
             BasicText("Glass closed unexpectedly", style = TextStyle(color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
             BasicText("Share the report so it can be fixed.", style = TextStyle(color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp))
@@ -570,7 +620,7 @@ private fun CrashBanner(state: LauncherState) {
         GlassButton(onClick = { state.dismissCrashReport() }, modifier = Modifier.size(32.dp)) {
             Symbol(Sym.CLOSE, 12.dp, Color.White)
         }
-    }
+    } }
 }
 
 /** The lifted copy of whatever is being dragged; follows the finger above everything. */

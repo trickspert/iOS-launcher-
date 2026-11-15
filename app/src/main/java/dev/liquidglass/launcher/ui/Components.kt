@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -81,7 +82,9 @@ import dev.liquidglass.launcher.data.FolderItem
 import dev.liquidglass.launcher.data.HomeItem
 import dev.liquidglass.launcher.data.IconStyle
 import dev.liquidglass.launcher.data.LauncherSettings
+import dev.liquidglass.launcher.glass.GlassMode
 import dev.liquidglass.launcher.glass.GlassTouch
+import dev.liquidglass.launcher.glass.LocalGlassMode
 import dev.liquidglass.launcher.glass.defaultTint
 import dev.liquidglass.launcher.glass.liquidGlass
 import java.util.Calendar
@@ -97,8 +100,19 @@ val LabelStyle = TextStyle(
     fontSize = 12.sp,
     fontWeight = FontWeight.Medium,
     textAlign = TextAlign.Center,
-    shadow = Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 1f), 4f),
+    letterSpacing = 0.1.sp,
+    shadow = Shadow(Color.Black.copy(alpha = 0.22f), Offset(0f, 1f), 5f),
 )
+
+/** Everything inside a glass panel is a thin clear layer on that panel, not another lens on the wallpaper. */
+@Composable
+fun InGlass(content: @Composable () -> Unit) =
+    CompositionLocalProvider(LocalGlassMode provides GlassMode.FLAT, content = content)
+
+/** Forces wallpaper-refracting glass (used for lifted copies of home screen items). */
+@Composable
+fun OnWallpaper(content: @Composable () -> Unit) =
+    CompositionLocalProvider(LocalGlassMode provides GlassMode.WALL, content = content)
 
 val TitleStyle = TextStyle(color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
 val BodyStyle = TextStyle(color = Color.White, fontSize = 16.sp)
@@ -106,8 +120,8 @@ val CaptionStyle = TextStyle(color = Color.White.copy(alpha = 0.65f), fontSize =
 
 fun tileTint(style: IconStyle, s: LauncherSettings): Color = when (style) {
     IconStyle.DEFAULT -> defaultTint(s)
-    IconStyle.DARK -> Color(0xFF0E0F12).copy(alpha = 0.5f)
-    IconStyle.CLEAR -> Color.White.copy(alpha = 0.05f + 0.18f * s.glassTint)
+    IconStyle.DARK -> Color(0xFF0B0C10).copy(alpha = 0.46f)
+    IconStyle.CLEAR -> Color.White.copy(alpha = 0.04f + 0.2f * s.glassTint)
     IconStyle.TINTED -> s.accent.copy(alpha = 0.3f)
 }
 
@@ -149,7 +163,7 @@ fun GlassRim(radius: Dp) {
     val state = LocalLauncher.current
     Canvas(Modifier.fillMaxSize()) {
         val r = radius.toPx()
-        val l = if (state.settings.motionLight) state.light.dir else Offset(-0.55f, -0.83f)
+        val l = if (state.settings.motionLight) state.light.dir else dev.liquidglass.launcher.glass.DEFAULT_LIGHT
         val c = center
         val reach = max(size.width, size.height) / 2f
         drawRoundRect(
@@ -282,7 +296,7 @@ fun AppIcon(
                 .onGloballyPositioned { bounds = it.boundsInWindow() }
                 .graphicsLayer {
                     val p = touch.press.value
-                    scaleX = grow * (1f + 0.07f * p); scaleY = grow * (1f + 0.07f * p)
+                    scaleX = grow * (1f - 0.08f * p); scaleY = grow * (1f - 0.08f * p)
                 }
                 .launcherGestures(
                     key = app.key,
@@ -318,7 +332,7 @@ fun RemoveBadge(visible: Boolean, onRemove: () -> Unit, modifier: Modifier = Mod
         modifier
             .size(24.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .liquidGlass(12.dp, tint = Color(0xFF3A3A3C).copy(alpha = 0.55f), refraction = 0.5f)
+            .liquidGlass(12.dp, tint = Color(0xFF3A3A3C).copy(alpha = 0.55f), refraction = 0.5f, shadow = 0.5f)
             .pointerInput(Unit) { detectTapGestures { onRemove() } },
         contentAlignment = Alignment.Center,
     ) {
@@ -349,7 +363,7 @@ fun FolderIcon(
                 .onGloballyPositioned { bounds = it.boundsInWindow() }
                 .graphicsLayer {
                     val p = touch.press.value
-                    scaleX = grow * (1f + 0.07f * p); scaleY = grow * (1f + 0.07f * p)
+                    scaleX = grow * (1f - 0.08f * p); scaleY = grow * (1f - 0.08f * p)
                 }
                 .launcherGestures(
                     key = folder.id,

@@ -13,6 +13,7 @@ import android.view.HapticFeedbackConstants
 import android.view.View
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.pager.PagerState
@@ -94,6 +95,27 @@ object BadgeCenter {
     val counts = mutableStateMapOf<String, Int>()
 }
 
+/** What the active media session is playing; published by [BadgeService]. */
+object NowPlaying {
+    var title by mutableStateOf<String?>(null)
+    var artist by mutableStateOf<String?>(null)
+    var art by mutableStateOf<ImageBitmap?>(null)
+    var playing by mutableStateOf(false)
+    var pkg by mutableStateOf<String?>(null)
+    var controller: android.media.session.MediaController? = null
+
+    val canControl get() = controller != null
+
+    fun toggle() {
+        val c = controller ?: return
+        runCatching { if (playing) c.transportControls.pause() else c.transportControls.play() }
+    }
+
+    fun clear() {
+        title = null; artist = null; art = null; playing = false; pkg = null; controller = null
+    }
+}
+
 class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
     val context: Context get() = app
     val settings = app.settings
@@ -117,8 +139,9 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
         private set
     var blurred by mutableStateOf<Bitmap?>(null)
         private set
+    var sharp by mutableStateOf<Bitmap?>(null)
+        private set
     private var wallKey = ""
-    private var sharpCache: Pair<String, Bitmap>? = null
 
     var crashReport by mutableStateOf<String?>(runCatching { app.crashFile().takeIf { it.exists() }?.readText() }.getOrNull())
     var isDefaultHome by mutableStateOf(true)
@@ -126,12 +149,21 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
     var calendarGranted by mutableStateOf(false)
     var clockTick by mutableIntStateOf(0)
 
-    val enter = Animatable(1f)
+    /** 0 = home screen at rest, 1 = fully "dived" into an app (icons flown apart). */
+    val zoom = Animatable(1f)
+    private var entered = false
+    /** Where the dive is centred, in window pixels. */
+    var zoomPivot by mutableStateOf(Offset.Unspecified)
     private var launchedSomething = false
+    private var resumed = false
+    private var zoomJob: Job? = null
 
     var pager: PagerState? = null
     var grid: GridMetrics? = null
     var dockBounds: Rect = Rect.Zero
+    /** Window x of the first dock slot and the slot pitch (dock icons sit on the home grid columns). */
+    var dockSlotLeft = 0f
+    var dockSlotW = 1f
     var screen: Size = Size.Zero
     private var armed: ArmedDrag? = null
     private var saveJob: Job? = null
@@ -203,15 +235,16 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
         }
         val page0 = ArrayList<HomeItem>()
         page0 += WidgetItem(newId("w"), WidgetType.BATTERY)
+        page0 += WidgetItem(newId("w"), WidgetType.MUSIC)
         page0 += WidgetItem(newId("w"), WidgetType.CALENDAR)
         val favourites = listOf(
             Glyph.PHOTOS, Glyph.CAMERA, Glyph.CLOCK, Glyph.SETTINGS, Glyph.MAIL, Glyph.MAPS, Glyph.WEATHER,
             Glyph.NOTES, Glyph.CALCULATOR, Glyph.FILES, Glyph.STORE, Glyph.LAUNCHER, Glyph.CONTACTS,
             Glyph.HEALTH, Glyph.VIDEO, Glyph.MUSIC, Glyph.CALENDAR,
         )
-        val room = cols * rows - 8 - 2
+        val room = cols * rows - 12
         for (g in favourites) {
-            if (page0.size - 2 >= room) break
+            if (page0.size - 3 >= room) break
             val a = byGlyph[g] ?: continue
             if (a.key in used) continue
             page0 += AppItem(a.key); used += a.key
@@ -264,25 +297,21 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
 
     fun ensureWallpaper(w: Int, h: Int) {
         if (w <= 0 || h <= 0) return
-        val key = "${settings.wallpaper}|${settings.frost}|$w|$h|${settings.wallpaperVersion}"
+        val key = "${settings.wallpaper}|$w|$h|${settings.wallpaperVersion}"
         if (key == wallKey) return
         wallKey = key
         val id = settings.wallpaper
-        val frost = settings.frost
-        val sharpKey = "$id|$w|$h|${settings.wallpaperVersion}"
         scope.launch {
-            if (wallpaper != null) delay(60) // coalesce rapid slider changes
-            if (key != wallKey) return@launch
-            val cached = sharpCache?.takeIf { it.first == sharpKey }?.second
-            val (sharp, soft) = withContext(Dispatchers.Default) {
-                val s = cached ?: runCatching { Wallpapers.load(app, id, w, h) }
+            val (crisp, soft) = withContext(Dispatchers.Default) {
+                val s = runCatching { Wallpapers.load(app, id, w, h) }
                     .getOrElse { Wallpapers.generate("aurora", maxOf(1, w / 2), maxOf(1, h / 2)) }
-                s to runCatching { Wallpapers.blur(s, frost, w) }.getOrElse { Wallpapers.blur(s, 0.4f, w) }
+                s to Wallpapers.blur(s, w)
             }
-            sharpCache = sharpKey to sharp
             if (key != wallKey) return@launch
-            sharp.prepareToDraw()
-            wallpaper = sharp.asImageBitmap()
+            crisp.prepareToDraw()
+            soft.prepareToDraw()
+            wallpaper = crisp.asImageBitmap()
+            sharp = crisp
             blurred = soft
         }
     }
@@ -320,6 +349,7 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
             launcherApps.startMainActivity(entry.component, entry.user, src, opts)
             repo.recordLaunch(entry.key)
             launchedSomething = true
+            dive(bounds?.center)
         } catch (e: Exception) {
             Toast.makeText(app, "Can't open ${entry.label}", Toast.LENGTH_SHORT).show()
         }
@@ -386,6 +416,31 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
 
     fun openPackageIntent(intent: Intent) {
         runCatching { app.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); launchedSomething = true }
+    }
+
+    /** Icons fly apart around [pivot] as an app opens; undone when we come back (or the launch never happens). */
+    private fun dive(pivot: Offset?) {
+        zoomPivot = pivot ?: Offset.Unspecified
+        zoomJob?.cancel()
+        zoomJob = scope.launch {
+            zoom.animateTo(1f, tween(420, easing = FastOutSlowInEasing))
+            delay(1500)
+            if (resumed) zoom.animateTo(0f, spring(dampingRatio = 0.85f, stiffness = 220f))
+        }
+    }
+
+    private fun surface(from: Float) {
+        zoomJob?.cancel()
+        zoomJob = scope.launch {
+            try {
+                if (zoom.value < from) zoom.snapTo(from)
+                zoom.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 170f))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                zoom.snapTo(0f)
+            }
+        }
     }
 
     fun shareCrashReport() {
@@ -624,8 +679,7 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
         val dock = layout.dock
         val from = dock.indexOf(key)
         if (from < 0 || dock.isEmpty()) return
-        val slot = dockBounds.width / dock.size
-        val to = ((pos.x - dockBounds.left) / slot).toInt().coerceIn(0, dock.size - 1)
+        val to = dockIndex(pos.x, dock.size).coerceIn(0, dock.size - 1)
         if (to == from) return
         val list = dock.toMutableList()
         list.removeAt(from); list.add(to, key)
@@ -683,9 +737,7 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
             })
             haptic()
         } else if (src is Source.Page && item is AppItem && dockBounds.contains(pos) && l.dock.size < dockCapacity && item.appKey !in l.dock) {
-            val n = l.dock.size + 1
-            val slot = dockBounds.width / n
-            val idx = ((pos.x - dockBounds.left) / slot).toInt().coerceIn(0, l.dock.size)
+            val idx = dockIndex(pos.x, l.dock.size + 1).coerceIn(0, l.dock.size)
             l = removeDragged(l, item, src)
             l = l.copy(dock = l.dock.toMutableList().also { it.add(idx, item.appKey) })
         } else if (src is Source.Dock && item is AppItem && !dockBounds.inflate(8f).contains(pos) && g != null) {
@@ -709,6 +761,12 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
         val gg = grid
         layout = if (gg != null) normalize(l, gg.cols, gg.rows) else l
         save()
+    }
+
+    /** Which of [count] centred dock slots the window x-coordinate falls in. */
+    private fun dockIndex(x: Float, count: Int): Int {
+        val start = dockSlotLeft + (dockCapacity - count) * dockSlotW / 2f
+        return kotlin.math.floor((x - start) / dockSlotW.coerceAtLeast(1f)).toInt()
     }
 
     private fun removeDragged(l: HomeLayout, item: AppItem, src: Source): HomeLayout = when (src) {
@@ -760,38 +818,26 @@ class LauncherState(val app: LauncherApplication, val scope: CoroutineScope) {
         badgesEnabled = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(app).contains(app.packageName)
         calendarGranted = app.checkSelfPermission(android.Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
         clockTick++
-        if (launchedSomething) {
+        resumed = true
+        if (launchedSomething || zoom.value > 0.01f) {
             launchedSomething = false
-            scope.launch {
-                try {
-                    enter.snapTo(0f)
-                    enter.animateTo(1f, spring(dampingRatio = 0.82f, stiffness = 260f))
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    enter.snapTo(1f)
-                }
-            }
+            surface(0.85f)
         }
     }
 
     fun onPause() {
+        resumed = false
         armed = null
         if (drag != null) cancelDrag()
         if (overlay is Overlay.Menu) overlay = null
     }
 
+    /** First appearance: icons fly in from beyond the edges. */
     fun playEnter() {
-        scope.launch {
-            try {
-                enter.snapTo(0f)
-                enter.animateTo(1f, tween(520))
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                enter.snapTo(1f)
-            }
-        }
+        if (entered) return
+        entered = true
+        zoomPivot = Offset.Unspecified
+        surface(1f)
     }
 
     private fun checkDefaultHome(): Boolean {
