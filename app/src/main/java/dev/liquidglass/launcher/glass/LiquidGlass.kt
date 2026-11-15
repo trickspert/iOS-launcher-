@@ -207,11 +207,12 @@ class LightSensor(context: Context, private val light: GlassLight) : SensorEvent
         val len = sqrt(x * x + y * y).coerceAtLeast(0.001f)
         x /= len; y /= len
         val cur = light.dir
-        if (abs(cur.x - x) + abs(cur.y - y) > 0.01f) light.dir = Offset(x, y)
+        // Thresholds keep a phone resting on a table (or held still) from redrawing the screen at all.
+        if (abs(cur.x - x) + abs(cur.y - y) > 0.018f) light.dir = Offset(x, y)
         val tx = ((fx - bx) / 3.2f).coerceIn(-1f, 1f)
         val ty = (-(fy - by) / 3.2f).coerceIn(-1f, 1f)
         val t = light.tilt
-        if (abs(t.x - tx) + abs(t.y - ty) > 0.008f) light.tilt = Offset(tx, ty)
+        if (abs(t.x - tx) + abs(t.y - ty) > 0.015f) light.tilt = Offset(tx, ty)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
