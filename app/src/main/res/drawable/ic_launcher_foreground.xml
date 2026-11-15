@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- glass tile -->
+    <path android:pathData="M42,32 L66,32 Q76,32 76,42 L76,66 Q76,76 66,76 L42,76 Q32,76 32,66 L32,42 Q32,32 42,32 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="54"
+                android:endY="76"
+                android:startX="54"
+                android:startY="32"
+                android:type="linear">
+                <item android:color="#99FFFFFF" android:offset="0" />
+                <item android:color="#33FFFFFF" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M42,32.75 L66,32.75 Q75.25,32.75 75.25,42 L75.25,66 Q75.25,75.25 66,75.25 L42,75.25 Q32.75,75.25 32.75,66 L32.75,42 Q32.75,32.75 42,32.75 Z"
+        android:strokeWidth="1.5"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:endX="76"
+                android:endY="76"
+                android:startX="32"
+                android:startY="32"
+                android:type="linear">
+                <item android:color="#FFFFFFFF" android:offset="0" />
+                <item android:color="#22FFFFFF" android:offset="0.5" />
+                <item android:color="#BBFFFFFF" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- specular droplet -->
+    <path android:pathData="M40,46 Q40,38 48,38 L52,38 Q44,40 42,48 Z" android:fillColor="#CCFFFFFF" />
+</vector>
