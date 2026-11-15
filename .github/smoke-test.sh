@@ -69,7 +69,10 @@ shot settings
 adb shell input swipe 1045 1500 1045 900 600
 sleep 2
 shot settings-scrolled
-adb shell input swipe 540 1700 540 700 500
+# Swipe up over the sliders: must scroll, not move a slider.
+adb shell input swipe 540 1700 540 700 700
+sleep 2
+adb shell input swipe 1045 1800 1045 600 700
 sleep 2
 shot settings-bottom
 adb shell input keyevent KEYCODE_BACK

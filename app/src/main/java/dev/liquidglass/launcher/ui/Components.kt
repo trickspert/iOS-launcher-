@@ -15,6 +15,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -535,17 +537,21 @@ fun GlassSlider(value: Float, onChange: (Float) -> Unit, modifier: Modifier = Mo
             .height(34.dp)
             .pointerInput(Unit) {
                 awaitEachGesture {
-                    val d = awaitFirstDown(); d.consume()
-                    touch.down(scope, Offset(size.height / 2f, size.height / 2f))
+                    val d = awaitFirstDown()
                     val thumb = 30.dp.toPx()
                     fun set(x: Float) = onChange(((x - thumb / 2) / (size.width - thumb)).coerceIn(0f, 1f))
-                    set(d.position.x)
-                    while (true) {
-                        val ev = awaitPointerEvent()
-                        val c = ev.changes.firstOrNull { it.id == d.id } ?: break
-                        if (!c.pressed) break
-                        c.consume(); set(c.position.x)
+                    // Only a sideways drag grabs the slider, so swiping up or down over it still scrolls the page.
+                    val start = awaitHorizontalTouchSlopOrCancellation(d.id) { c, _ -> c.consume() }
+                    if (start == null) {
+                        val up = currentEvent.changes.firstOrNull { it.id == d.id }
+                        if (up != null && !up.pressed && !up.isConsumed &&
+                            (up.position - d.position).getDistance() < viewConfiguration.touchSlop
+                        ) set(up.position.x)
+                        return@awaitEachGesture
                     }
+                    touch.down(scope, Offset(size.height / 2f, size.height / 2f))
+                    set(start.position.x)
+                    horizontalDrag(start.id) { c -> c.consume(); set(c.position.x) }
                     touch.up(scope)
                 }
             },

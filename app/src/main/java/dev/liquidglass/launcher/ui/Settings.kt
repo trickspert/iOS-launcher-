@@ -99,6 +99,7 @@ fun SettingsSheet(state: LauncherState) {
             }
             Column(
                 Modifier
+                    .weight(1f, fill = false)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
                     .navigationBarsPadding(),
