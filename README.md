@@ -47,7 +47,8 @@ with your own key instead.
 ## Larp Vault (`larp/`)
 
 A separate, just-for-fun app: a black "midnight glass" balance screen (frosted cards, blue-teal glow)
-with a simple crypto list where every number is made up.
+with a simple crypto list where every number is made up. BTC, ETH, SOL, USDC and DOGE get drawn coin
+logos automatically, and any coin can use a photo from your gallery as its icon.
 Tap the balance to set the total, the change line and the account name, or tap any token to edit its
 name, symbol, amount, value, change and color. Add or delete tokens; everything is saved on the device.
 It has no send, receive or network features, and it shows a **DEMO** tag.

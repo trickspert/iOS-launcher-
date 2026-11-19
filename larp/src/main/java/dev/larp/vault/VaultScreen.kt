@@ -1,9 +1,17 @@
 package dev.larp.vault
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +57,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -134,6 +143,7 @@ fun VaultScreen(state: VaultState) {
                     total = state.total,
                     change = state.change,
                     percent = state.percent,
+                    tokens = state.tokens.sortedByDescending { it.value },
                     onClick = { editingHeader = true },
                 )
             }
@@ -146,7 +156,7 @@ fun VaultScreen(state: VaultState) {
                     Text("${state.tokens.size}", color = Muted, fontSize = 15.sp)
                 }
             }
-            items(state.tokens, key = { it.id }) { token ->
+            items(state.tokens.sortedByDescending { it.value }, key = { it.id }) { token ->
                 TokenRow(token) { editingToken = token }
             }
             item {
@@ -176,6 +186,7 @@ fun VaultScreen(state: VaultState) {
 
     editingToken?.let { token ->
         TokenDialog(
+            state = state,
             initial = token,
             isNew = state.isNew(token),
             onSave = { state.upsert(it); editingToken = null },
@@ -243,7 +254,7 @@ private fun countUp(target: Double): Double {
 }
 
 @Composable
-private fun Balance(total: Double, change: Double, percent: Double, onClick: () -> Unit) {
+private fun Balance(total: Double, change: Double, percent: Double, tokens: List<Token>, onClick: () -> Unit) {
     val tint = if (change < 0) Down else Up
     val shownTotal = countUp(total)
     val shownChange = countUp(change)
@@ -251,36 +262,80 @@ private fun Balance(total: Double, change: Double, percent: Double, onClick: () 
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(CardShape)
-            .clickable(onClick = onClick)
-            .padding(top = 30.dp, bottom = 12.dp),
-    ) {
-        Text("Total balance", color = Muted, fontSize = 14.sp)
-        Spacer(Modifier.height(8.dp))
-        val text = (if (shownTotal < 0) "-" else "") + money(shownTotal, wholeDollars = abs(total) >= 1_000_000)
-        FitText(text, maxSizeSp = 54f, style = TextStyle(color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = (-1).sp))
-        Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                signedMoney(shownChange),
-                color = tint,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
+            .pressClick(onClick = onClick)
+            .background(
+                Brush.linearGradient(
+                    listOf(GlowBlue.copy(alpha = 0.22f), Color.White.copy(alpha = 0.04f), GlowTeal.copy(alpha = 0.16f)),
+                ),
             )
-            Spacer(Modifier.width(10.dp))
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(tint.copy(alpha = 0.14f))
-                    .border(1.dp, tint.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-                    .padding(horizontal = 8.dp, vertical = 3.dp),
-            ) {
-                Text(signedPercent(percent), color = tint, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            }
+            .border(
+                1.dp,
+                Brush.linearGradient(listOf(Color.White.copy(alpha = 0.25f), Color.White.copy(alpha = 0.04f), Ice.copy(alpha = 0.25f))),
+                CardShape,
+            )
+            .padding(start = 18.dp, end = 18.dp, top = 22.dp, bottom = 18.dp),
+    ) {
+        Text("Total balance", color = Muted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(6.dp))
+        val text = (if (shownTotal < 0) "-" else "") + money(shownTotal, wholeDollars = abs(total) >= 1_000_000)
+        FitText(text, maxSizeSp = 50f, style = TextStyle(color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = (-1).sp))
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(signedMoney(shownChange), color = tint, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.width(8.dp))
+            ChangePill(percent, tint)
             Spacer(Modifier.width(8.dp))
             Text("today", color = Muted, fontSize = 14.sp)
         }
+        AllocationBar(tokens)
     }
+}
+
+@Composable
+private fun ChangePill(percent: Double, tint: Color) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(tint.copy(alpha = 0.14f))
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+    ) {
+        Text(signedPercent(percent), color = tint, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** A thin bar split by how much of the total each coin is worth. */
+@Composable
+private fun AllocationBar(tokens: List<Token>) {
+    val parts = tokens.filter { it.value > 0 }
+    val sum = parts.sumOf { it.value }
+    if (parts.isEmpty() || sum <= 0) return
+    Spacer(Modifier.height(18.dp))
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        modifier = Modifier.fillMaxWidth().height(6.dp),
+    ) {
+        parts.forEach { t ->
+            Box(
+                Modifier
+                    .weight((t.value / sum).toFloat().coerceAtLeast(0.01f))
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Color(t.color)),
+            )
+        }
+    }
+}
+
+/** Clickable card that shrinks slightly while pressed. */
+@Composable
+private fun Modifier.pressClick(shape: Shape = CardShape, onClick: () -> Unit): Modifier {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, label = "press")
+    return this
+        .graphicsLayer { scaleX = scale; scaleY = scale }
+        .clip(shape)
+        .clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
 }
 
 /** One line of text that shrinks to fit the width, for very long balances. */
@@ -299,11 +354,11 @@ private fun TokenRow(token: Token, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .pressClick(onClick = onClick)
             .glass()
-            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
-        TokenIcon(token, 46)
+        CoinIcon(token, 46.dp)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -331,33 +386,14 @@ private fun TokenRow(token: Token, onClick: () -> Unit) {
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
             )
-            Text(
-                signedMoney(token.change),
-                color = if (token.change < 0) Down else Up,
-                fontSize = 14.sp,
-                maxLines = 1,
-            )
+            Spacer(Modifier.height(3.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val tint = if (token.change < 0) Down else Up
+                Text(signedMoney(token.change), color = tint, fontSize = 13.sp, maxLines = 1)
+                Spacer(Modifier.width(6.dp))
+                ChangePill(tokenPercent(token), tint)
+            }
         }
-    }
-}
-
-@Composable
-private fun TokenIcon(token: Token, sizeDp: Int) {
-    val c = Color(token.color)
-    Box(
-        Modifier
-            .size(sizeDp.dp)
-            .clip(CircleShape)
-            .background(Brush.linearGradient(listOf(c, c.copy(alpha = 0.55f))))
-            .border(1.5.dp, Color.White.copy(alpha = 0.25f), CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            token.symbol.ifBlank { token.name }.take(1).uppercase().ifBlank { "?" },
-            color = Black,
-            fontSize = (sizeDp * 0.42f).sp,
-            fontWeight = FontWeight.Black,
-        )
     }
 }
 
@@ -366,8 +402,8 @@ private fun AddTokenCard(onClick: () -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
+            .pressClick(onClick = onClick)
             .glass()
-            .clickable(onClick = onClick)
             .padding(18.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -379,6 +415,7 @@ private fun AddTokenCard(onClick: () -> Unit) {
 
 @Composable
 private fun TokenDialog(
+    state: VaultState,
     initial: Token,
     isNew: Boolean,
     onSave: (Token) -> Unit,
@@ -392,6 +429,11 @@ private fun TokenDialog(
     var change by remember { mutableStateOf(if (isNew) "" else plain(abs(initial.change))) }
     var changeUp by remember { mutableStateOf(initial.change >= 0) }
     var color by remember { mutableIntStateOf(initial.color) }
+    var icon by remember { mutableStateOf(initial.icon) }
+    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) state.importIcon(uri)?.let { icon = it }
+    }
+    val preview = initial.copy(name = name, symbol = symbol, color = color, icon = icon)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -402,6 +444,24 @@ private fun TokenDialog(
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CoinIcon(preview, 56.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Chip("Logo", icon == "" || icon == "auto") { icon = "" }
+                            Chip("Letter", icon == "letter") { icon = "letter" }
+                        }
+                        Chip("Photo…", icon.startsWith("file:")) {
+                            pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
+                    }
+                }
+                Text(
+                    "Logo works for BTC, ETH, SOL, USDC and DOGE. Others show a letter unless you pick a photo.",
+                    color = Muted,
+                    fontSize = 12.sp,
+                )
                 Field("Name", name, { name = it })
                 Field("Symbol", symbol, { symbol = it.uppercase() }, KeyboardOptions(capitalization = KeyboardCapitalization.Characters))
                 Field("Amount held (e.g. 3,000)", amount, { amount = it })
@@ -439,6 +499,7 @@ private fun TokenDialog(
                         value = parseNumber(value) ?: 0.0,
                         change = if (changeUp) magnitude else -magnitude,
                         color = color,
+                        icon = icon,
                     ),
                 )
             }) { Text("Save") }
@@ -558,6 +619,25 @@ private fun ChangeField(
             Text(if (up) "▲ Up" else "▼ Down", color = tint, fontWeight = FontWeight.SemiBold)
         }
     }
+}
+
+@Composable
+private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) Ice.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.06f))
+            .border(1.dp, if (selected) Ice.copy(alpha = 0.6f) else Color.Transparent, RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    ) {
+        Text(label, color = if (selected) Ice else Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+private fun tokenPercent(t: Token): Double {
+    val before = t.value - t.change
+    return if (before == 0.0) 0.0 else t.change / abs(before) * 100
 }
 
 private fun initials(name: String): String {

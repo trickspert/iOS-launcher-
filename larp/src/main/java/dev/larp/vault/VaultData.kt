@@ -1,12 +1,17 @@
 package dev.larp.vault
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 import java.math.BigDecimal
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
@@ -22,6 +27,8 @@ data class Token(
     val value: Double,
     val change: Double,
     val color: Int,
+    /** "" = pick a logo from the symbol, "letter", a built-in key like "btc", or "file:<path>". */
+    val icon: String = "",
 )
 
 /** Header values. A null override means "add up the token list". */
@@ -63,6 +70,7 @@ private class VaultStore(context: Context) {
                     value = o.getString("value").toDouble(),
                     change = o.getString("change").toDouble(),
                     color = o.getInt("color"),
+                    icon = o.optString("icon", ""),
                 )
             }
         }.getOrElse { defaultTokens() }
@@ -80,7 +88,8 @@ private class VaultStore(context: Context) {
                     // Stored as text so big numbers survive the round trip exactly.
                     .put("value", plain(t.value))
                     .put("change", plain(t.change))
-                    .put("color", t.color),
+                    .put("color", t.color)
+                    .put("icon", t.icon),
             )
         }
         prefs.edit().putString("tokens", arr.toString()).apply()
@@ -107,7 +116,9 @@ private class VaultStore(context: Context) {
 }
 
 class VaultState(context: Context) {
-    private val store = VaultStore(context)
+    private val appContext = context.applicationContext
+    private val store = VaultStore(appContext)
+    private val iconDir get() = File(appContext.filesDir, "icons").apply { mkdirs() }
 
     val tokens = mutableStateListOf<Token>().apply { addAll(store.loadTokens()) }
     var header by mutableStateOf(store.loadHeader())
@@ -143,7 +154,25 @@ class VaultState(context: Context) {
         store.saveHeader(h)
     }
 
+    /** Copies a picked photo into app storage as a 256px square and returns its icon key. */
+    fun importIcon(uri: Uri): String? = runCatching {
+        val cr = appContext.contentResolver
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= 256 && bounds.outHeight / (sample * 2) >= 256) sample *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        val bmp = cr.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) } ?: return null
+        val side = minOf(bmp.width, bmp.height)
+        val square = Bitmap.createBitmap(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side)
+        val out = Bitmap.createScaledBitmap(square, 256, 256, true)
+        val file = File(iconDir, "icon-${System.currentTimeMillis()}.png")
+        FileOutputStream(file).use { out.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        "file:" + file.absolutePath
+    }.getOrNull()
+
     fun resetAll() {
+        iconDir.listFiles()?.forEach { it.delete() }
         store.clear()
         tokens.clear()
         tokens.addAll(defaultTokens())
