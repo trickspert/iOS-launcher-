@@ -43,3 +43,11 @@ glass fallback.
 The APK is signed with the public sideload key in `keystore/` so new builds install over old ones.
 Set `GLASS_KEYSTORE`, `GLASS_KEYSTORE_PASSWORD`, `GLASS_KEY_ALIAS` and `GLASS_KEY_PASSWORD` to sign
 with your own key instead.
+
+## Larp Vault (`larp/`)
+
+A separate, just-for-fun app: a dark, original-style balance screen where every number is made up.
+Tap the balance to set the total, the change line and the account name, or tap any token to edit its
+name, symbol, amount, value, change and color. Add or delete tokens; everything is saved on the device.
+It has no send, receive or network features, and it shows a **DEMO** tag.
+CI publishes it as **LarpVault.apk** next to GlassLauncher.apk.

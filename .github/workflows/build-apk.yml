@@ -33,12 +33,16 @@ jobs:
           ./gradlew --no-daemon --stacktrace assembleRelease
 
       - name: Collect APK
-        run: cp app/build/outputs/apk/release/app-release.apk GlassLauncher.apk
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk GlassLauncher.apk
+          cp larp/build/outputs/apk/release/larp-release.apk LarpVault.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: GlassLauncher-apk
-          path: GlassLauncher.apk
+          path: |
+            GlassLauncher.apk
+            LarpVault.apk
 
 
   smoke-test:
@@ -101,9 +105,9 @@ jobs:
         run: |
           TAG="apk-${GITHUB_REF_NAME//\//-}"
           gh release delete "$TAG" --yes --cleanup-tag || true
-          gh release create "$TAG" GlassLauncher.apk \
+          gh release create "$TAG" GlassLauncher.apk LarpVault.apk \
             --target "$GITHUB_SHA" \
             --prerelease \
             --title "Glass Launcher – ${GITHUB_REF_NAME} (build ${GITHUB_RUN_NUMBER})" \
-            --notes "Download **GlassLauncher.apk** below and open it on your Android phone (Android 8.0+). Liquid glass refraction needs Android 13+; older versions get a frosted fallback."
+            --notes "**LarpVault.apk** is the demo balance display app. Download **GlassLauncher.apk** below and open it on your Android phone (Android 8.0+). Liquid glass refraction needs Android 13+; older versions get a frosted fallback."
 
