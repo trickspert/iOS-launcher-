@@ -3,7 +3,7 @@
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
     <!-- A coin: mint ring with a diamond in the middle. -->
-    <path android:fillColor="#FF3DDBB4"
+    <path android:fillColor="#FF7FE7FF"
         android:pathData="M54,30a24,24 0,1 1,0 48a24,24 0,1 1,0 -48zM54,36a18,18 0,1 0,0 36a18,18 0,1 0,0 -36z" />
-    <path android:fillColor="#FF3DDBB4" android:pathData="M54,42L65,54L54,66L43,54z" />
+    <path android:fillColor="#FF7FE7FF" android:pathData="M54,42L65,54L54,66L43,54z" />
 </vector>
