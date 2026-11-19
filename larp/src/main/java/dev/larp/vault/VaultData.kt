@@ -32,17 +32,18 @@ data class Header(
 )
 
 val Palette: List<Int> = listOf(
-    0xFF3DDBB4, 0xFFFFB547, 0xFF6C8CFF, 0xFFFF6B8A,
-    0xFFB98CFF, 0xFF4FC3F7, 0xFFFF8A4C, 0xFF9BE15D,
+    0xFFF7931A, 0xFF8C9EFF, 0xFF14F1B0, 0xFFE0C35A,
+    0xFF3D8BFF, 0xFFFF6B8A, 0xFFB98CFF, 0xFF9BE15D,
 ).map { it.toInt() }
 
 fun defaultHeader() = Header(account = "Vault 1", totalOverride = null, changeOverride = null)
 
 fun defaultTokens() = listOf(
-    Token(1, "Moon Coin", "MOON", "3,000", 1_500_000_000_000.0, 241_754_291_757.51, Palette[1]),
-    Token(2, "Star Token", "STAR", "0.12803", 29.96, 0.45, Palette[2]),
-    Token(3, "Comet", "CMT", "895.73741", 1.95, -2.16, Palette[7]),
-    Token(4, "Rocket", "RKT", "16,222.8519", 0.74, -0.12, Palette[3]),
+    Token(1, "Bitcoin", "BTC", "12.5", 1_203_750.00, 18_420.55, Palette[0]),
+    Token(2, "Ethereum", "ETH", "84.2", 312_540.10, -4_210.32, Palette[1]),
+    Token(3, "Solana", "SOL", "1,250", 182_300.00, 9_115.00, Palette[2]),
+    Token(4, "Dogecoin", "DOGE", "250,000", 54_250.00, 1_302.40, Palette[3]),
+    Token(5, "USD Coin", "USDC", "25,000", 25_000.00, 0.0, Palette[4]),
 )
 
 private class VaultStore(context: Context) {

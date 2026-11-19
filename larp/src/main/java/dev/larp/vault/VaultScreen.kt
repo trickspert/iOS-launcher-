@@ -3,7 +3,6 @@ package dev.larp.vault
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,11 +48,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -77,7 +72,6 @@ private val Muted = Color(0xFF8A93A3)
 private val DialogBg = Color(0xFF101318)
 
 private val CardShape = RoundedCornerShape(22.dp)
-private const val HIDDEN = "••••••"
 
 @Composable
 fun VaultTheme(content: @Composable () -> Unit) {
@@ -105,7 +99,6 @@ private fun Modifier.glass(shape: Shape = CardShape): Modifier = this
 fun VaultScreen(state: VaultState) {
     var editingToken by remember { mutableStateOf<Token?>(null) }
     var editingHeader by remember { mutableStateOf(false) }
-    var hidden by remember { mutableStateOf(false) }
 
     Box(
         Modifier
@@ -134,34 +127,27 @@ fun VaultScreen(state: VaultState) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                TopBar(
-                    account = state.header.account,
-                    hidden = hidden,
-                    onAccount = { editingHeader = true },
-                    onToggleHidden = { hidden = !hidden },
-                )
+                TopBar(account = state.header.account, onAccount = { editingHeader = true })
             }
             item {
                 Balance(
                     total = state.total,
                     change = state.change,
                     percent = state.percent,
-                    hidden = hidden,
                     onClick = { editingHeader = true },
                 )
             }
-            item { Chart(up = state.change >= 0) }
             item {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp, start = 4.dp, end = 4.dp),
                 ) {
-                    Text("Assets", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text("Crypto", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     Text("${state.tokens.size}", color = Muted, fontSize = 15.sp)
                 }
             }
             items(state.tokens, key = { it.id }) { token ->
-                TokenRow(token, hidden) { editingToken = token }
+                TokenRow(token) { editingToken = token }
             }
             item {
                 AddTokenCard {
@@ -178,7 +164,7 @@ fun VaultScreen(state: VaultState) {
             }
             item {
                 Text(
-                    "Tap the balance or any asset to change it.\nDemo display only. Not a real wallet.",
+                    "Tap the balance or any coin to change it.\nDemo display only. Not a real wallet.",
                     color = Muted,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
@@ -203,7 +189,7 @@ fun VaultScreen(state: VaultState) {
 }
 
 @Composable
-private fun TopBar(account: String, hidden: Boolean, onAccount: () -> Unit, onToggleHidden: () -> Unit) {
+private fun TopBar(account: String, onAccount: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -219,27 +205,15 @@ private fun TopBar(account: String, hidden: Boolean, onAccount: () -> Unit, onTo
                 Text(initials(account), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
             Spacer(Modifier.width(12.dp))
-            Column {
-                Text("Welcome back", color = Muted, fontSize = 12.sp)
-                Text(
-                    account,
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            Text(
+                account,
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        Box(
-            Modifier
-                .glass(RoundedCornerShape(14.dp))
-                .clickable(onClick = onToggleHidden)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-        ) {
-            Text(if (hidden) "Show" else "Hide", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        }
-        Spacer(Modifier.width(8.dp))
         Box(
             Modifier
                 .clip(RoundedCornerShape(8.dp))
@@ -269,7 +243,7 @@ private fun countUp(target: Double): Double {
 }
 
 @Composable
-private fun Balance(total: Double, change: Double, percent: Double, hidden: Boolean, onClick: () -> Unit) {
+private fun Balance(total: Double, change: Double, percent: Double, onClick: () -> Unit) {
     val tint = if (change < 0) Down else Up
     val shownTotal = countUp(total)
     val shownChange = countUp(change)
@@ -283,16 +257,12 @@ private fun Balance(total: Double, change: Double, percent: Double, hidden: Bool
     ) {
         Text("Total balance", color = Muted, fontSize = 14.sp)
         Spacer(Modifier.height(8.dp))
-        val text = if (hidden) {
-            "$" + HIDDEN
-        } else {
-            (if (shownTotal < 0) "-" else "") + money(shownTotal, wholeDollars = abs(total) >= 1_000_000)
-        }
+        val text = (if (shownTotal < 0) "-" else "") + money(shownTotal, wholeDollars = abs(total) >= 1_000_000)
         FitText(text, maxSizeSp = 54f, style = TextStyle(color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = (-1).sp))
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (hidden) HIDDEN else signedMoney(shownChange),
+                signedMoney(shownChange),
                 color = tint,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -323,72 +293,8 @@ private fun FitText(text: String, maxSizeSp: Float, style: TextStyle) {
     }
 }
 
-private val Ranges = listOf("1D", "1W", "1M", "1Y", "ALL")
-
-/** Decorative chart: a random walk that ends up or down to match today's change. */
 @Composable
-private fun Chart(up: Boolean) {
-    var range by remember { mutableIntStateOf(0) }
-    val points = remember(range, up) { chartPoints(seed = range * 7919 + 17, up = up) }
-    val tint = if (up) Up else Down
-
-    Column(Modifier.fillMaxWidth().glass().padding(vertical = 14.dp)) {
-        Canvas(Modifier.fillMaxWidth().height(130.dp).padding(horizontal = 14.dp)) {
-            val lo = points.min()
-            val span = (points.max() - lo).takeIf { it > 0f } ?: 1f
-            fun x(i: Int) = size.width * i / (points.size - 1)
-            fun y(p: Float) = size.height * (0.08f + 0.84f * (1f - (p - lo) / span))
-
-            val line = Path()
-            points.forEachIndexed { i, p -> if (i == 0) line.moveTo(x(i), y(p)) else line.lineTo(x(i), y(p)) }
-            val fill = Path().apply {
-                addPath(line)
-                lineTo(size.width, size.height)
-                lineTo(0f, size.height)
-                close()
-            }
-            drawPath(fill, Brush.verticalGradient(listOf(tint.copy(alpha = 0.28f), Color.Transparent)))
-            drawPath(line, tint, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-            val end = Offset(x(points.size - 1), y(points.last()))
-            drawCircle(tint.copy(alpha = 0.25f), radius = 9.dp.toPx(), center = end)
-            drawCircle(tint, radius = 4.dp.toPx(), center = end)
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        ) {
-            Ranges.forEachIndexed { i, label ->
-                val selected = i == range
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent)
-                        .clickable { range = i }
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
-                ) {
-                    Text(
-                        label,
-                        color = if (selected) Color.White else Muted,
-                        fontSize = 13.sp,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun chartPoints(seed: Int, up: Boolean, n: Int = 60): List<Float> {
-    val rnd = java.util.Random(seed.toLong())
-    var v = 0f
-    val walk = List(n) { v += rnd.nextFloat() - 0.5f; v }
-    val drift = (if (up) 1f else -1f) * (abs(walk.last() - walk.first()) + n * 0.06f)
-    return walk.mapIndexed { i, p -> p + drift * i / (n - 1) }
-}
-
-@Composable
-private fun TokenRow(token: Token, hidden: Boolean, onClick: () -> Unit) {
+private fun TokenRow(token: Token, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -409,7 +315,7 @@ private fun TokenRow(token: Token, hidden: Boolean, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                if (hidden) "$HIDDEN ${token.symbol}" else "${token.amount} ${token.symbol}".trim(),
+                "${token.amount} ${token.symbol}".trim(),
                 color = Muted,
                 fontSize = 14.sp,
                 maxLines = 1,
@@ -419,7 +325,7 @@ private fun TokenRow(token: Token, hidden: Boolean, onClick: () -> Unit) {
         Spacer(Modifier.width(10.dp))
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                if (hidden) "$$HIDDEN" else money(token.value),
+                money(token.value),
                 color = Color.White,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -465,7 +371,7 @@ private fun AddTokenCard(onClick: () -> Unit) {
             .padding(18.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text("+  Add asset", color = Ice, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text("+  Add crypto", color = Ice, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -490,7 +396,7 @@ private fun TokenDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DialogBg,
-        title = { Text(if (isNew) "Add asset" else "Edit asset") },
+        title = { Text(if (isNew) "Add crypto" else "Edit crypto") },
         text = {
             Column(
                 Modifier.verticalScroll(rememberScrollState()),
@@ -569,11 +475,11 @@ private fun HeaderDialog(state: VaultState, onDismiss: () -> Unit) {
                     total,
                     { total = it },
                     KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    placeholder = "Blank = sum of assets (${money(state.tokenTotal)})",
+                    placeholder = "Blank = sum of coins (${money(state.tokenTotal)})",
                 )
                 ChangeField(
                     change, { change = it }, changeUp, { changeUp = it },
-                    placeholder = "Blank = sum of assets",
+                    placeholder = "Blank = sum of coins",
                 )
                 TextButton(onClick = { state.resetAll(); onDismiss() }) {
                     Text("Reset everything to the sample", color = Down)
